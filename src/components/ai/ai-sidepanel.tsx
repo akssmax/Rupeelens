@@ -1,40 +1,35 @@
-import { useState } from "react"
+import { Fragment, useCallback, useState } from "react"
 import {
-  ArrowUpIcon,
-  Loader2Icon,
+  CopyIcon,
+  RefreshCcwIcon,
   SparklesIcon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
   XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
-import { Bubble, BubbleContent } from "@/components/ui/bubble"
-import { Button } from "@/components/ui/button"
 import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupTextarea,
-} from "@/components/ui/input-group"
-import { Marker } from "@/components/ui/marker"
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation"
 import {
   Message,
+  MessageAction,
+  MessageActions,
   MessageContent,
-  MessageHeader,
-} from "@/components/ui/message"
+  MessageResponse,
+} from "@/components/ai-elements/message"
 import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@/components/ui/message-scroller"
+  PromptInput,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  type PromptInputMessage,
+} from "@/components/ai-elements/prompt-input"
+import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
@@ -42,12 +37,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Marker } from "@/components/ui/marker"
 import { useFinanceData } from "@/hooks/use-finance-data"
 import { buildFinanceContext } from "@/lib/finance-context"
 import { chatWithFinance, type ChatMessage } from "@/server/chat"
 import { cn } from "@/lib/utils"
 
 type UiMessage = ChatMessage & { id: string }
+type Feedback = "up" | "down"
 
 const SUGGESTIONS = [
   "Where did I spend the most this month?",
@@ -65,55 +62,93 @@ export function AiSidepanel({
 }) {
   const { transactionCount, getTransactionsSnapshot } = useFinanceData()
   const [messages, setMessages] = useState<UiMessage[]>([])
-  const [input, setInput] = useState("")
+  const [feedback, setFeedback] = useState<Record<string, Feedback | undefined>>(
+    {},
+  )
   const [busy, setBusy] = useState(false)
 
   const canChat = transactionCount > 0
 
-  const send = async (text: string) => {
-    const trimmed = text.trim()
-    if (!trimmed || busy) return
+  const send = useCallback(
+    async (
+      text: string,
+      options?: { appendUser?: boolean; baseMessages?: UiMessage[] },
+    ) => {
+      const trimmed = text.trim()
+      if (!trimmed || busy) return
 
-    const userMsg: UiMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: trimmed,
-    }
-    const next = [...messages, userMsg]
-    setMessages(next)
-    setInput("")
-    setBusy(true)
+      const appendUser = options?.appendUser ?? true
+      const base = options?.baseMessages ?? messages
 
-    try {
-      const transactions = getTransactionsSnapshot()
-      if (transactions.length === 0) {
-        throw new Error("Import a bank CSV first so I can answer with your data.")
+      const userMsg: UiMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: trimmed,
       }
-      const financeContext = buildFinanceContext(transactions)
-      const { reply } = await chatWithFinance({
-        data: {
-          messages: next.map(({ role, content }) => ({ role, content })),
-          financeContext,
-        },
-      })
-      setMessages((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), role: "assistant", content: reply },
-      ])
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      toast.error(msg)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: `Sorry — I couldn't answer that. ${msg}`,
-        },
-      ])
-    } finally {
-      setBusy(false)
+      const next = appendUser ? [...base, userMsg] : base
+
+      if (appendUser) {
+        setMessages(next)
+      }
+
+      setBusy(true)
+
+      try {
+        const transactions = getTransactionsSnapshot()
+        if (transactions.length === 0) {
+          throw new Error(
+            "Import a bank CSV first so I can answer with your data.",
+          )
+        }
+        const financeContext = buildFinanceContext(transactions)
+        const { reply } = await chatWithFinance({
+          data: {
+            messages: next.map(({ role, content }) => ({ role, content })),
+            financeContext,
+          },
+        })
+        setMessages((prev) => [
+          ...(appendUser ? prev : base),
+          { id: crypto.randomUUID(), role: "assistant", content: reply },
+        ])
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        toast.error(msg)
+        setMessages((prev) => [
+          ...(appendUser ? prev : base),
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: `Sorry — I couldn't answer that. ${msg}`,
+          },
+        ])
+      } finally {
+        setBusy(false)
+      }
+    },
+    [busy, getTransactionsSnapshot, messages],
+  )
+
+  const handleSubmit = (message: PromptInputMessage) => {
+    if (message.text.trim()) {
+      void send(message.text)
     }
+  }
+
+  const handleRegenerate = async (messageIndex: number) => {
+    const prior = messages.slice(0, messageIndex)
+    const lastUser = [...prior].reverse().find((m) => m.role === "user")
+    if (!lastUser) return
+    setMessages(prior)
+    await send(lastUser.content, { appendUser: false, baseMessages: prior })
+  }
+
+  const setMessageFeedback = (messageId: string, value: Feedback) => {
+    setFeedback((prev) => {
+      const next = prev[messageId] === value ? undefined : value
+      return { ...prev, [messageId]: next }
+    })
+    toast.success("Thanks for the feedback")
   }
 
   const empty = messages.length === 0
@@ -148,135 +183,150 @@ export function AiSidepanel({
           </div>
         </SheetHeader>
 
-        <MessageScrollerProvider autoScroll>
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-hidden">
-              {empty ? (
-                <Empty className="h-full border-0">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <SparklesIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>Ask your money anything</EmptyTitle>
-                    <EmptyDescription>
-                      {canChat
-                        ? `${transactionCount} transactions loaded. Try a prompt below.`
-                        : "Upload a bank CSV first, then come back to chat."}
-                    </EmptyDescription>
-                  </EmptyHeader>
-                  <div className="mt-4 flex max-w-sm flex-col gap-2 px-6">
-                    {SUGGESTIONS.map((s) => (
-                      <Button
-                        key={s}
-                        variant="outline"
-                        className="h-auto justify-start whitespace-normal px-3 py-2 text-left text-xs"
-                        disabled={!canChat || busy}
-                        onClick={() => void send(s)}
-                      >
-                        {s}
-                      </Button>
-                    ))}
-                  </div>
-                </Empty>
-              ) : (
-                <MessageScroller>
-                  <MessageScrollerViewport>
-                    <MessageScrollerContent
-                      aria-busy={busy}
-                      className="gap-4 p-4"
-                    >
-                      {messages.map((message) => (
-                        <MessageScrollerItem
-                          key={message.id}
-                          messageId={message.id}
-                          scrollAnchor={message.role === "user"}
-                        >
-                          <Message
-                            align={message.role === "user" ? "end" : "start"}
-                          >
-                            <MessageContent>
-                              <MessageHeader>
-                                {message.role === "user" ? "You" : "RupeeLens AI"}
-                              </MessageHeader>
-                              <Bubble
-                                variant={
-                                  message.role === "user" ? "default" : "muted"
-                                }
-                                align={
-                                  message.role === "user" ? "end" : "start"
-                                }
-                              >
-                                <BubbleContent className="whitespace-pre-wrap">
-                                  {message.content}
-                                </BubbleContent>
-                              </Bubble>
-                            </MessageContent>
-                          </Message>
-                        </MessageScrollerItem>
-                      ))}
-                      {busy ? (
-                        <MessageScrollerItem messageId="thinking">
-                          <Marker className="shimmer px-1">
-                            Thinking with your ledger…
-                          </Marker>
-                        </MessageScrollerItem>
-                      ) : null}
-                    </MessageScrollerContent>
-                  </MessageScrollerViewport>
-                  <MessageScrollerButton />
-                </MessageScroller>
-              )}
-            </div>
-
-            <div className="border-t p-3">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  void send(input)
-                }}
-              >
-                <InputGroup>
-                  <InputGroupTextarea
-                    placeholder={
-                      canChat
-                        ? "Ask about your spending…"
-                        : "Import a CSV to enable chat"
-                    }
-                    value={input}
+        <div className="flex min-h-0 flex-1 flex-col">
+          {empty ? (
+            <ConversationEmptyState
+              className="flex-1"
+              title="Ask your money anything"
+              description={
+                canChat
+                  ? `${transactionCount} transactions loaded. Try a prompt below.`
+                  : "Upload a bank CSV first, then come back to chat."
+              }
+              icon={<SparklesIcon className="size-5" />}
+            >
+              <div className="mt-4 flex max-w-sm flex-col gap-2">
+                {SUGGESTIONS.map((s) => (
+                  <Button
+                    key={s}
+                    variant="outline"
+                    className="h-auto justify-start whitespace-normal px-3 py-2 text-left text-xs"
                     disabled={!canChat || busy}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault()
-                        void send(input)
-                      }
-                    }}
-                    className="min-h-16"
-                  />
-                  <InputGroupAddon align="block-end">
-                    <InputGroupButton
-                      type="submit"
-                      variant="default"
-                      size="icon-sm"
-                      className="ml-auto"
-                      disabled={!canChat || busy || !input.trim()}
-                      aria-label="Send"
-                    >
-                      {busy ? (
-                        <Loader2Icon className="animate-spin" />
-                      ) : (
-                        <ArrowUpIcon />
-                      )}
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                </InputGroup>
-              </form>
-              <p className="text-muted-foreground mt-2 text-[11px]">
-                Context stays in your browser; only summaries are sent to Mistral.
-              </p>
-            </div>
+                    onClick={() => void send(s)}
+                  >
+                    {s}
+                  </Button>
+                ))}
+              </div>
+            </ConversationEmptyState>
+          ) : (
+            <Conversation className="min-h-0 flex-1">
+              <ConversationContent className="gap-6 p-4">
+                {messages.map((message, index) => {
+                  const isAssistant = message.role === "assistant"
+                  const isLastAssistant =
+                    isAssistant &&
+                    !messages.slice(index + 1).some((m) => m.role === "assistant")
+
+                  return (
+                    <Fragment key={message.id}>
+                      <Message from={message.role}>
+                        <MessageContent>
+                          {isAssistant ? (
+                            <MessageResponse>{message.content}</MessageResponse>
+                          ) : (
+                            <p className="whitespace-pre-wrap">
+                              {message.content}
+                            </p>
+                          )}
+                        </MessageContent>
+                      </Message>
+
+                      {isAssistant ? (
+                        <MessageActions className="ml-0.5">
+                          <MessageAction
+                            tooltip="Good response"
+                            label="Good response"
+                            variant={
+                              feedback[message.id] === "up"
+                                ? "secondary"
+                                : "ghost"
+                            }
+                            onClick={() =>
+                              setMessageFeedback(message.id, "up")
+                            }
+                          >
+                            <ThumbsUpIcon className="size-3.5" />
+                          </MessageAction>
+                          <MessageAction
+                            tooltip="Bad response"
+                            label="Bad response"
+                            variant={
+                              feedback[message.id] === "down"
+                                ? "secondary"
+                                : "ghost"
+                            }
+                            onClick={() =>
+                              setMessageFeedback(message.id, "down")
+                            }
+                          >
+                            <ThumbsDownIcon className="size-3.5" />
+                          </MessageAction>
+                          <MessageAction
+                            tooltip="Copy"
+                            label="Copy"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(message.content)
+                              toast.success("Copied to clipboard")
+                            }}
+                          >
+                            <CopyIcon className="size-3.5" />
+                          </MessageAction>
+                          {isLastAssistant ? (
+                            <MessageAction
+                              tooltip="Regenerate"
+                              label="Regenerate"
+                              disabled={busy}
+                              onClick={() => void handleRegenerate(index)}
+                            >
+                              <RefreshCcwIcon className="size-3.5" />
+                            </MessageAction>
+                          ) : null}
+                        </MessageActions>
+                      ) : null}
+                    </Fragment>
+                  )
+                })}
+                {busy ? (
+                  <Marker className="shimmer px-1">
+                    Thinking with your ledger…
+                  </Marker>
+                ) : null}
+              </ConversationContent>
+              <ConversationScrollButton />
+            </Conversation>
+          )}
+
+          <div className="border-t p-3">
+            <PromptInput
+              onSubmit={(message, event) => {
+                event.preventDefault()
+                handleSubmit(message)
+              }}
+              className="w-full"
+            >
+              <PromptInputBody>
+                <PromptInputTextarea
+                  placeholder={
+                    canChat
+                      ? "Ask about your spending…"
+                      : "Import a CSV to enable chat"
+                  }
+                  disabled={!canChat || busy}
+                />
+              </PromptInputBody>
+              <PromptInputFooter className="justify-end">
+                <PromptInputSubmit
+                  status={busy ? "submitted" : undefined}
+                  disabled={!canChat || busy}
+                />
+              </PromptInputFooter>
+            </PromptInput>
+            <p className="text-muted-foreground mt-2 text-[11px]">
+              Context stays in your browser; only summaries are sent to Mistral.
+            </p>
           </div>
-        </MessageScrollerProvider>
+        </div>
       </SheetContent>
     </Sheet>
   )
@@ -291,13 +341,12 @@ export function AiFab({
 }) {
   return (
     <div
-      className={cn("fixed right-4 bottom-4 z-40 md:right-6 md:bottom-6", className)}
+      className={cn(
+        "fixed right-4 bottom-4 z-40 md:right-6 md:bottom-6",
+        className,
+      )}
     >
-      <Button
-        size="lg"
-        className="rounded-full shadow-lg"
-        onClick={onClick}
-      >
+      <Button size="lg" className="rounded-full shadow-lg" onClick={onClick}>
         <SparklesIcon className="size-4" />
         Ask AI
       </Button>

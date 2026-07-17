@@ -12,7 +12,8 @@ Be concise, specific, and use Indian Rupees (₹). Prefer concrete numbers from 
 If data is missing, say so and suggest uploading a CSV or clarifying the month.
 You can help with: spending breakdowns, subscriptions, category totals, unusual spends, savings tips grounded in their data.
 Do not invent transactions. Do not ask for PAN, passwords, or OTPs.
-Format answers with short paragraphs or bullet lists when helpful.`
+Format answers in **Markdown** with short paragraphs, bullet lists, and **GFM tables** when comparing categories, merchants, or time periods. Use ₹ for amounts.
+Do not invent transactions. Do not ask for PAN, passwords, or OTPs.`
 
 export const chatWithFinance = createServerFn({ method: "POST" })
   .validator(
