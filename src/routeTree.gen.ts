@@ -8,43 +8,147 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from "./routes/__root"
-import { Route as IndexRouteImport } from "./routes/index"
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as UploadRouteImport } from './routes/upload'
+import { Route as TransactionsRouteImport } from './routes/transactions'
+import { Route as SubscriptionsRouteImport } from './routes/subscriptions'
+import { Route as SpendingRouteImport } from './routes/spending'
+import { Route as CreditsDebitsRouteImport } from './routes/credits-debits'
+import { Route as IndexRouteImport } from './routes/index'
 
+const UploadRoute = UploadRouteImport.update({
+  id: '/upload',
+  path: '/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransactionsRoute = TransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubscriptionsRoute = SubscriptionsRouteImport.update({
+  id: '/subscriptions',
+  path: '/subscriptions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SpendingRoute = SpendingRouteImport.update({
+  id: '/spending',
+  path: '/spending',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreditsDebitsRoute = CreditsDebitsRouteImport.update({
+  id: '/credits-debits',
+  path: '/credits-debits',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
-  id: "/",
-  path: "/",
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
-  "/": typeof IndexRoute
+  '/': typeof IndexRoute
+  '/credits-debits': typeof CreditsDebitsRoute
+  '/spending': typeof SpendingRoute
+  '/subscriptions': typeof SubscriptionsRoute
+  '/transactions': typeof TransactionsRoute
+  '/upload': typeof UploadRoute
 }
 export interface FileRoutesByTo {
-  "/": typeof IndexRoute
+  '/': typeof IndexRoute
+  '/credits-debits': typeof CreditsDebitsRoute
+  '/spending': typeof SpendingRoute
+  '/subscriptions': typeof SubscriptionsRoute
+  '/transactions': typeof TransactionsRoute
+  '/upload': typeof UploadRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  "/": typeof IndexRoute
+  '/': typeof IndexRoute
+  '/credits-debits': typeof CreditsDebitsRoute
+  '/spending': typeof SpendingRoute
+  '/subscriptions': typeof SubscriptionsRoute
+  '/transactions': typeof TransactionsRoute
+  '/upload': typeof UploadRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: "/"
+  fullPaths:
+    | '/'
+    | '/credits-debits'
+    | '/spending'
+    | '/subscriptions'
+    | '/transactions'
+    | '/upload'
   fileRoutesByTo: FileRoutesByTo
-  to: "/"
-  id: "__root__" | "/"
+  to:
+    | '/'
+    | '/credits-debits'
+    | '/spending'
+    | '/subscriptions'
+    | '/transactions'
+    | '/upload'
+  id:
+    | '__root__'
+    | '/'
+    | '/credits-debits'
+    | '/spending'
+    | '/subscriptions'
+    | '/transactions'
+    | '/upload'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CreditsDebitsRoute: typeof CreditsDebitsRoute
+  SpendingRoute: typeof SpendingRoute
+  SubscriptionsRoute: typeof SubscriptionsRoute
+  TransactionsRoute: typeof TransactionsRoute
+  UploadRoute: typeof UploadRoute
 }
 
-declare module "@tanstack/react-router" {
+declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    "/": {
-      id: "/"
-      path: "/"
-      fullPath: "/"
+    '/upload': {
+      id: '/upload'
+      path: '/upload'
+      fullPath: '/upload'
+      preLoaderRoute: typeof UploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transactions': {
+      id: '/transactions'
+      path: '/transactions'
+      fullPath: '/transactions'
+      preLoaderRoute: typeof TransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subscriptions': {
+      id: '/subscriptions'
+      path: '/subscriptions'
+      fullPath: '/subscriptions'
+      preLoaderRoute: typeof SubscriptionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/spending': {
+      id: '/spending'
+      path: '/spending'
+      fullPath: '/spending'
+      preLoaderRoute: typeof SpendingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/credits-debits': {
+      id: '/credits-debits'
+      path: '/credits-debits'
+      fullPath: '/credits-debits'
+      preLoaderRoute: typeof CreditsDebitsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -53,14 +157,19 @@ declare module "@tanstack/react-router" {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CreditsDebitsRoute: CreditsDebitsRoute,
+  SpendingRoute: SpendingRoute,
+  SubscriptionsRoute: SubscriptionsRoute,
+  TransactionsRoute: TransactionsRoute,
+  UploadRoute: UploadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
-import type { getRouter } from "./router.tsx"
-import type { createStart } from "@tanstack/react-start"
-declare module "@tanstack/react-start" {
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>

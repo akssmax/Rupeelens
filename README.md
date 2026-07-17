@@ -1,21 +1,32 @@
-# TanStack Start + shadcn/ui
+# RupeeLens — Personal Finance
 
-This is a template for a new TanStack Start project with React, TypeScript, and shadcn/ui.
+TanStack Start + shadcn/ui + Framer Motion app for Indian bank CSV imports, local IndexedDB storage, and Mistral-powered categorization.
 
-## Adding components
-
-To add components to your app, run the following command:
+## Setup
 
 ```bash
-npx shadcn@latest add button
+npm install
+cp .env.example .env
+# Add your MISTRAL_API_KEY to .env
+npm run dev
 ```
 
-This will place the ui components in the `components` directory.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Using components
+## Features
 
-To use the components in your app, import them as follows:
+- Upload monthly bank CSVs (Axis-first; HDFC, ICICI, SBI, Kotak, Yes, IndusInd, IDFC + generic mapper)
+- Store statements & transactions in browser IndexedDB
+- Auto-categorize via Mistral (`mistral-small-latest`)
+- Dashboard: income / expense / net, category breakdown, top merchants
+- Weekly & daily spend charts
+- Subscriptions detection
+- Credits vs debits views
 
-```tsx
-import { Button } from "@/components/ui/button";
-```
+## Sample data
+
+Import [`fixtures/axis-sample.csv`](fixtures/axis-sample.csv) from the Upload page to try the flow without a real statement.
+
+## Privacy
+
+CSVs never leave the browser for storage. Only narration, date, and amount are sent to the server for Mistral categorization. The API key stays in server env.
