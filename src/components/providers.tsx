@@ -12,6 +12,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange
+      storageKey="rupeelens-theme"
     >
       <TooltipProvider>
         <ShellChromeProvider>

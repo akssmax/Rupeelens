@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { EmptyState } from "@/components/empty-state"
+import { CreditsDebitsPageSkeleton } from "@/components/page-skeletons"
 import { MonthSelect } from "@/components/month-select"
 import { TransactionTable } from "@/components/transactions/transaction-table"
 import { Card, CardContent } from "@/components/ui/card"
@@ -34,7 +35,7 @@ function CreditsDebitsPage() {
   )
 
   if (loading) {
-    return <p className="text-muted-foreground text-sm">Loading…</p>
+    return <CreditsDebitsPageSkeleton />
   }
 
   if (transactions.length === 0) {
@@ -100,12 +101,14 @@ function CreditsDebitsPage() {
               transactions={flow.debits}
               categories={categories}
               onCategoryChange={handleCategoryChange}
+              toolbar="compact"
             />
           ) : (
             <TransactionTable
               transactions={flow.credits}
               categories={categories}
               onCategoryChange={handleCategoryChange}
+              toolbar="compact"
             />
           )}
         </div>

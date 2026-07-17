@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { EmptyState } from "@/components/empty-state"
+import { SubscriptionsPageSkeleton } from "@/components/page-skeletons"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -22,7 +23,7 @@ function SubscriptionsPage() {
   const { loading, transactions, subscriptions } = useFinanceData()
 
   if (loading) {
-    return <p className="text-muted-foreground text-sm">Loading…</p>
+    return <SubscriptionsPageSkeleton />
   }
 
   if (transactions.length === 0) {

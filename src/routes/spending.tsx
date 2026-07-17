@@ -2,6 +2,7 @@ import { useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { SpendBars } from "@/components/charts/spend-bars"
 import { EmptyState } from "@/components/empty-state"
+import { SpendingPageSkeleton } from "@/components/page-skeletons"
 import { MonthSelect } from "@/components/month-select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -16,7 +17,7 @@ function SpendingPage() {
   const [grain, setGrain] = useState<"weekly" | "daily">("weekly")
 
   if (loading) {
-    return <p className="text-muted-foreground text-sm">Loading…</p>
+    return <SpendingPageSkeleton />
   }
 
   if (transactions.length === 0) {

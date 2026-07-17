@@ -3,6 +3,7 @@ import { Lightbulb, Loader2, RefreshCw, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { TrendsInsightsSkeleton } from "@/components/page-skeletons"
 import { buildTrendsContext } from "@/lib/finance-context"
 import { formatINR, formatMonthLabel } from "@/lib/format"
 import type { Transaction } from "@/lib/types"
@@ -108,14 +109,7 @@ export function TrendsInsights({
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        {loading && !data ? (
-          <div className="space-y-3">
-            <div className="bg-muted h-4 w-full animate-pulse rounded" />
-            <div className="bg-muted h-4 w-5/6 animate-pulse rounded" />
-            <div className="bg-muted mt-4 h-16 w-full animate-pulse rounded-lg" />
-            <div className="bg-muted h-16 w-full animate-pulse rounded-lg" />
-          </div>
-        ) : null}
+        {loading && !data ? <TrendsInsightsSkeleton /> : null}
 
         {error && !data ? (
           <div className="space-y-3 text-sm">

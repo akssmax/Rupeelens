@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { motion } from "framer-motion"
 import {
   ArrowUpIcon,
   Loader2Icon,
@@ -291,9 +290,7 @@ export function AiFab({
   className?: string
 }) {
   return (
-    <motion.div
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
+    <div
       className={cn("fixed right-4 bottom-4 z-40 md:right-6 md:bottom-6", className)}
     >
       <Button
@@ -304,6 +301,6 @@ export function AiFab({
         <SparklesIcon className="size-4" />
         Ask AI
       </Button>
-    </motion.div>
+    </div>
   )
 }

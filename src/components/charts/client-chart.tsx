@@ -7,13 +7,31 @@ import {
   type ReactElement,
 } from "react"
 import { ErrorBoundary } from "@/components/error-boundary"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 type Size = { width: number; height: number }
 
+function ChartSkeleton({
+  className,
+  minHeight,
+}: {
+  className?: string
+  minHeight: number
+}) {
+  return (
+    <div
+      className={cn("relative w-full min-w-0", className)}
+      style={{ height: minHeight, minHeight }}
+    >
+      <Skeleton className="absolute inset-0 rounded-lg" />
+    </div>
+  )
+}
+
 /**
  * Measure the host and pass explicit numeric width/height to Recharts.
- * Avoids ResponsiveContainer's -1 size warn loop (crashes Vite via console bridge).
+ * Client-only mount avoids SSR hydration mismatches and Recharts -1 size loops.
  */
 export function ClientChart({
   className,
@@ -25,9 +43,15 @@ export function ClientChart({
   minHeight?: number
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const [mounted, setMounted] = useState(false)
   const [size, setSize] = useState<Size>({ width: 0, height: 0 })
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted) return
     const el = hostRef.current
     if (!el) return
 
@@ -46,7 +70,11 @@ export function ClientChart({
     const ro = new ResizeObserver(update)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [mounted])
+
+  if (!mounted) {
+    return <ChartSkeleton className={className} minHeight={minHeight} />
+  }
 
   const ready = size.width >= 1 && size.height >= 1
 
@@ -64,7 +92,7 @@ export function ClientChart({
           })}
         </ErrorBoundary>
       ) : (
-        <div className="bg-muted/40 absolute inset-0 animate-pulse rounded-lg" />
+        <Skeleton className="absolute inset-0 rounded-lg" />
       )}
     </div>
   )

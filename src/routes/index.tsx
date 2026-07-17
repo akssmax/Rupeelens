@@ -14,6 +14,7 @@ import { CategoryBars } from "@/components/charts/category-bars"
 import { CategoryPie } from "@/components/charts/category-pie"
 import { SpendBars } from "@/components/charts/spend-bars"
 import { Onboarding } from "@/components/onboarding"
+import { DashboardSkeleton } from "@/components/page-skeletons"
 import { TrendsInsights } from "@/components/trends-insights"
 import { MerchantAvatar } from "@/components/merchant-avatar"
 import { MonthSelect } from "@/components/month-select"
@@ -67,7 +68,7 @@ function DashboardPage() {
   )
 
   if (loading) {
-    return <p className="text-muted-foreground text-sm">Loading…</p>
+    return <DashboardSkeleton />
   }
 
   if (transactions.length === 0) {

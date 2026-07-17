@@ -3,18 +3,11 @@ import { createFileRoute } from "@tanstack/react-router"
 import { Loader2, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { EmptyState } from "@/components/empty-state"
+import { TransactionsPageSkeleton } from "@/components/page-skeletons"
 import { MonthSelect } from "@/components/month-select"
 import { TransactionTable } from "@/components/transactions/transaction-table"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { useFinanceData } from "@/hooks/use-finance-data"
 import { filterByMonth } from "@/lib/analytics"
 import type { CategoryId } from "@/lib/types"
@@ -38,11 +31,13 @@ function TransactionsPage() {
     changeCategory,
     refresh,
   } = useFinanceData()
-  const [search, setSearch] = useState("")
-  const [type, setType] = useState<"all" | "debit" | "credit">("all")
-  const [category, setCategory] = useState<string>("all")
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<CategorizeProgress | null>(null)
+
+  const monthTransactions = useMemo(
+    () => (month ? filterByMonth(transactions, month) : transactions),
+    [transactions, month],
+  )
 
   const uncategorizedCount = useMemo(
     () =>
@@ -58,24 +53,6 @@ function TransactionsPage() {
     },
     [changeCategory],
   )
-
-  const filtered = useMemo(() => {
-    let list = month ? filterByMonth(transactions, month) : transactions
-    if (type === "debit") list = list.filter((t) => t.debit > 0)
-    if (type === "credit") list = list.filter((t) => t.credit > 0)
-    if (category !== "all") {
-      list = list.filter((t) => t.categoryId === category)
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter(
-        (t) =>
-          t.description.toLowerCase().includes(q) ||
-          (t.merchant?.toLowerCase().includes(q) ?? false),
-      )
-    }
-    return list
-  }, [transactions, month, type, category, search])
 
   const autoCategorize = async (force = false) => {
     setRunning(true)
@@ -110,7 +87,7 @@ function TransactionsPage() {
   }
 
   if (loading) {
-    return <p className="text-muted-foreground text-sm">Loading…</p>
+    return <TransactionsPageSkeleton />
   }
 
   if (transactions.length === 0) {
@@ -163,45 +140,11 @@ function TransactionsPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        <Input
-          placeholder="Search description or merchant…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
-        <Select
-          value={type}
-          onValueChange={(v) => setType(v as "all" | "debit" | "credit")}
-        >
-          <SelectTrigger className="w-[130px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="debit">Debits</SelectItem>
-            <SelectItem value="credit">Credits</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
       <TransactionTable
-        transactions={filtered}
+        transactions={monthTransactions}
         categories={categories}
         onCategoryChange={handleCategoryChange}
+        toolbar="full"
       />
     </div>
   )
