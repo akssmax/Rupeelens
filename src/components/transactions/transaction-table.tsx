@@ -26,7 +26,15 @@ import { memo, useEffect, useMemo, useState } from "react"
 import { MerchantAvatar } from "@/components/merchant-avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -43,7 +51,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Toggle } from "@/components/ui/toggle"
-import { CATEGORY_MAP } from "@/lib/categories"
+import { buildCategoryMap, CATEGORY_MAP, CUSTOM_CATEGORY_COLORS } from "@/lib/categories"
 import { formatDisplayDate, formatINR } from "@/lib/format"
 import type { Category, CategoryId, Transaction } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -109,12 +117,14 @@ export function TransactionTable({
   transactions,
   categories,
   onCategoryChange,
+  onCreateCategory,
   toolbar = "full",
   initialFilters,
 }: {
   transactions: Transaction[]
   categories: Category[]
   onCategoryChange?: (id: string, categoryId: CategoryId) => void
+  onCreateCategory?: (name: string, color?: string) => Promise<Category | null>
   /** full = search, filters, sort, pagination; compact = sort + pagination only */
   toolbar?: "full" | "compact"
   initialFilters?: {
@@ -122,6 +132,7 @@ export function TransactionTable({
     categoryId?: CategoryId
   }
 }) {
+  const categoryMap = useMemo(() => buildCategoryMap(categories), [categories])
   const [sorting, setSorting] = useState<SortingState>([
     { id: "date", desc: true },
   ])
@@ -187,10 +198,10 @@ export function TransactionTable({
         ),
         sortingFn: (rowA, rowB) => {
           const a =
-            CATEGORY_MAP[rowA.original.categoryId]?.name ??
+            categoryMap[rowA.original.categoryId]?.name ??
             rowA.original.categoryId
           const b =
-            CATEGORY_MAP[rowB.original.categoryId]?.name ??
+            categoryMap[rowB.original.categoryId]?.name ??
             rowB.original.categoryId
           return a.localeCompare(b)
         },
@@ -200,7 +211,9 @@ export function TransactionTable({
           <TransactionCategoryCell
             transaction={row.original}
             categories={categories}
+            categoryMap={categoryMap}
             onCategoryChange={onCategoryChange}
+            onCreateCategory={onCreateCategory}
           />
         ),
       },
@@ -251,7 +264,7 @@ export function TransactionTable({
           !value || row.getValue(columnId) === true,
       },
     ],
-    [categories, onCategoryChange],
+    [categories, categoryMap, onCategoryChange, onCreateCategory],
   )
 
   const table = useReactTable({
@@ -612,34 +625,131 @@ const TransactionMerchantCell = memo(function TransactionMerchantCell({
 const TransactionCategoryCell = memo(function TransactionCategoryCell({
   transaction: t,
   categories,
+  categoryMap,
   onCategoryChange,
+  onCreateCategory,
 }: {
   transaction: Transaction
   categories: Category[]
+  categoryMap: Record<string, Category>
   onCategoryChange?: (id: string, categoryId: CategoryId) => void
+  onCreateCategory?: (name: string, color?: string) => Promise<Category | null>
 }) {
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [newColor, setNewColor] = useState(CUSTOM_CATEGORY_COLORS[0]!)
+  const [creating, setCreating] = useState(false)
+
   if (onCategoryChange) {
     return (
-      <Select
-        value={t.categoryId}
-        onValueChange={(v) => onCategoryChange(t.id, v as CategoryId)}
-      >
-        <SelectTrigger size="sm" className="w-[140px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {categories.map((c) => (
-            <SelectItem key={c.id} value={c.id}>
-              {c.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <>
+        <Select
+          value={t.categoryId}
+          onValueChange={(v) => {
+            if (v === "__new__") {
+              setCreateOpen(true)
+              return
+            }
+            onCategoryChange(t.id, v)
+          }}
+        >
+          <SelectTrigger size="sm" className="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+            {onCreateCategory ? (
+              <SelectItem value="__new__" className="text-primary">
+                + New category…
+              </SelectItem>
+            ) : null}
+          </SelectContent>
+        </Select>
+
+        {onCreateCategory ? (
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create category</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor={`category-name-${t.id}`}>Name</Label>
+                  <Input
+                    id={`category-name-${t.id}`}
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="e.g. Pet care"
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Color</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {CUSTOM_CATEGORY_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        aria-label={`Pick ${color}`}
+                        className={cn(
+                          "size-7 rounded-full border-2 transition-transform",
+                          newColor === color
+                            ? "scale-110 border-foreground"
+                            : "border-transparent",
+                        )}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setNewColor(color)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setCreateOpen(false)}
+                  disabled={creating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!newName.trim() || creating}
+                  onClick={() => {
+                    void (async () => {
+                      setCreating(true)
+                      try {
+                        const category = await onCreateCategory(
+                          newName.trim(),
+                          newColor,
+                        )
+                        if (category) {
+                          onCategoryChange(t.id, category.id)
+                          setNewName("")
+                          setNewColor(CUSTOM_CATEGORY_COLORS[0]!)
+                          setCreateOpen(false)
+                        }
+                      } finally {
+                        setCreating(false)
+                      }
+                    })()
+                  }}
+                >
+                  Create
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : null}
+      </>
     )
   }
   return (
     <Badge variant="secondary">
-      {CATEGORY_MAP[t.categoryId]?.name ?? t.categoryId}
+      {categoryMap[t.categoryId]?.name ?? CATEGORY_MAP[t.categoryId]?.name ?? t.categoryId}
     </Badge>
   )
 })

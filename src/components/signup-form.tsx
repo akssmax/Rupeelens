@@ -12,9 +12,28 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { authClient } from "@/lib/auth/client"
+import {
+  authErrorMessage,
+  ensureAuthSessionReady,
+} from "@/lib/auth/post-auth"
 import { emitFinanceRefresh } from "@/lib/finance-events"
 import { migrateIndexedDbToCloud } from "@/lib/migrate-local-to-cloud"
 import { cn } from "@/lib/utils"
+
+function syncLocalDataInBackground() {
+  void migrateIndexedDbToCloud()
+    .then((synced) => {
+      emitFinanceRefresh()
+      if (synced.transactions > 0) {
+        toast.success(
+          `Synced ${synced.transactions} local transactions to your account`,
+        )
+      }
+    })
+    .catch(() => {
+      /* user can retry from sidebar */
+    })
+}
 
 export function SignupForm({
   className,
@@ -40,33 +59,24 @@ export function SignupForm({
 
     setSubmitting(true)
     try {
-      await authClient.signUp.email({
+      const result = await authClient.signUp.email({
         email,
         password,
         name: name.trim() || email.split("@")[0] || "User",
       })
-
-      const session = await authClient.getSession({
-        query: { disableCookieCache: true },
-      })
-      if (!session.data?.session?.token) {
+      if (result.error) {
         throw new Error(
-          "Account created, but session did not start. Try signing in.",
+          authErrorMessage(result.error, "Could not create account"),
         )
       }
 
-      const synced = await migrateIndexedDbToCloud()
+      await ensureAuthSessionReady()
       emitFinanceRefresh()
-      if (synced.transactions > 0) {
-        toast.success(
-          `Account created — synced ${synced.transactions} transactions`,
-        )
-      } else {
-        toast.success("Account created")
-      }
+      toast.success("Account created")
       void navigate({ to: "/" })
+      syncLocalDataInBackground()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not create account")
+      toast.error(authErrorMessage(e, "Could not create account"))
     } finally {
       setSubmitting(false)
     }

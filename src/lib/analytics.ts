@@ -7,9 +7,9 @@ import {
   parseISO,
   startOfMonth,
 } from "date-fns"
-import { CATEGORY_MAP } from "./categories"
+import { buildCategoryMap, CATEGORY_MAP } from "./categories"
 import { extractMerchantName } from "./merchants/extract"
-import type { CategoryId, Transaction } from "./types"
+import type { Category, CategoryId, Transaction } from "./types"
 
 export interface MonthlySummary {
   month: string
@@ -67,7 +67,9 @@ export function availableMonths(txs: Transaction[]): string[] {
 export function monthlySummary(
   txs: Transaction[],
   month: string,
+  categories?: Category[],
 ): MonthlySummary {
+  const categoryMap = categories ? buildCategoryMap(categories) : CATEGORY_MAP
   const monthTxs = filterByMonth(txs, month)
   let totalCredit = 0
   let totalDebit = 0
@@ -100,8 +102,8 @@ export function monthlySummary(
   const byCategory = [...catMap.entries()]
     .map(([categoryId, amount]) => ({
       categoryId,
-      name: CATEGORY_MAP[categoryId]?.name ?? categoryId,
-      color: CATEGORY_MAP[categoryId]?.color ?? "#ced4da",
+      name: categoryMap[categoryId]?.name ?? categoryId,
+      color: categoryMap[categoryId]?.color ?? "#ced4da",
       amount,
     }))
     .sort((a, b) => b.amount - a.amount)

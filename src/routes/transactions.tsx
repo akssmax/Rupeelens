@@ -10,7 +10,7 @@ import { useCategorizeJob } from "@/components/upload/categorize-job-context"
 import { Button } from "@/components/ui/button"
 import { useFinanceData } from "@/hooks/use-finance-data"
 import { filterByMonth } from "@/lib/analytics"
-import { CATEGORY_MAP } from "@/lib/categories"
+import { resolveCategoryName } from "@/lib/categories"
 import { formatDisplayDate } from "@/lib/format"
 import type { CategoryId } from "@/lib/types"
 
@@ -63,6 +63,7 @@ function TransactionsPage() {
     setMonth,
     months,
     changeCategory,
+    createCategory,
   } = useFinanceData()
   const { job, startJob } = useCategorizeJob()
   const running = job.active
@@ -85,13 +86,16 @@ function TransactionsPage() {
   const filterHint = useMemo(() => {
     if (merchant) return `Showing ${merchant} transactions`
     if (category) {
-      const name = CATEGORY_MAP[category]?.name ?? category
+      const name = resolveCategoryName(
+        category,
+        Object.fromEntries(categories.map((c) => [c.id, c])),
+      )
       return `Showing ${name} transactions`
     }
     if (date) return `Showing ${formatDisplayDate(date)}`
     if (week) return `Showing week ${week.split("-W")[1]} transactions`
     return null
-  }, [merchant, category, date, week])
+  }, [merchant, category, date, week, categories])
 
   const uncategorizedCount = useMemo(
     () =>
@@ -155,6 +159,7 @@ function TransactionsPage() {
         transactions={monthTransactions}
         categories={categories}
         onCategoryChange={handleCategoryChange}
+        onCreateCategory={createCategory}
         toolbar="full"
         initialFilters={initialFilters}
       />

@@ -9,29 +9,14 @@ export type BankId =
   | "idfc"
   | "generic"
 
-export type CategoryId =
-  | "food"
-  | "groceries"
-  | "transport"
-  | "shopping"
-  | "rent"
-  | "utilities"
-  | "entertainment"
-  | "health"
-  | "travel"
-  | "transfers"
-  | "salary"
-  | "investments"
-  | "subscriptions"
-  | "fees"
-  | "cash"
-  | "other"
-  | "uncategorized"
+/** Built-in seed ids plus user-defined `custom_*` ids. */
+export type CategoryId = string
 
 export interface Category {
   id: CategoryId
   name: string
   color: string
+  custom?: boolean
 }
 
 export interface Statement {
@@ -79,6 +64,7 @@ export interface AppSettings {
   currency: "INR"
   mistralModel: string
   lastImportAt?: string
+  customCategories?: Category[]
 }
 
 export interface ParsedRow {

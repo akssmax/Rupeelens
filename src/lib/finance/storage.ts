@@ -1,4 +1,3 @@
-import { SEED_CATEGORIES } from "../categories"
 import { createClientOnlyFn } from "@tanstack/react-start"
 import * as local from "../db"
 import type {
@@ -37,8 +36,20 @@ export async function getAllStatements(): Promise<Statement[]> {
 }
 
 export async function getCategories(): Promise<Category[]> {
-  if (mode === "cloud") return SEED_CATEGORIES
+  if (mode === "cloud") {
+    return (await loadCloud()).getCategories()
+  }
   return local.getCategories()
+}
+
+export async function createCategory(
+  name: string,
+  color?: string,
+): Promise<Category> {
+  if (mode === "cloud") {
+    return (await loadCloud()).createCategory(name, color)
+  }
+  return local.createCustomCategory(name, color)
 }
 
 export async function getSettings(): Promise<AppSettings> {
@@ -112,4 +123,5 @@ export async function clearAllData(): Promise<void> {
   return local.clearAllData()
 }
 
+export { buildCategoryMap, mergeCategories } from "../categories"
 export { merchantKeyFromDescription } from "../merchants/keys"

@@ -1,6 +1,15 @@
 import { createServerFn } from "@tanstack/react-start"
 import { and, eq } from "drizzle-orm"
 import { requireServerSession } from "@/lib/auth/session.server"
+import {
+  mergeCategories,
+  pickCustomCategoryColor,
+  slugifyCategoryName,
+} from "@/lib/categories"
+import {
+  normalizeTransactionDescription,
+  partitionNewTransactions,
+} from "@/lib/finance/transaction-dedupe"
 import { getPgDb } from "@/lib/db/pg"
 import {
   appMerchantMemory,
@@ -11,6 +20,7 @@ import {
 import type {
   AppSettings,
   BankId,
+  Category,
   CategoryId,
   MerchantMemory,
   Statement,
@@ -100,11 +110,13 @@ export const fetchCloudFinanceData = createServerFn({ method: "POST" }).handler(
           currency: "INR",
           mistralModel: settingsRow[0].mistralModel,
           lastImportAt: settingsRow[0].lastImportAt?.toISOString(),
+          customCategories: (settingsRow[0].customCategories as Category[] | null) ?? [],
         }
       : {
           id: "settings",
           currency: "INR",
           mistralModel: "mistral-small-latest",
+          customCategories: [],
         }
 
     return {
@@ -116,6 +128,7 @@ export const fetchCloudFinanceData = createServerFn({ method: "POST" }).handler(
         .sort((a, b) => b.date.localeCompare(a.date)),
       merchantMemory: merchantMemory.map(rowToMerchantMemory),
       settings,
+      categories: mergeCategories(settings.customCategories ?? []),
     }
   },
 )
@@ -128,6 +141,16 @@ export const saveCloudImport = createServerFn({ method: "POST" })
     const { user } = await requireServerSession()
     const db = getPgDb()
     const now = new Date()
+
+    const [existingStatement] = await db
+      .select({ userId: appStatements.userId })
+      .from(appStatements)
+      .where(eq(appStatements.id, data.statement.id))
+      .limit(1)
+
+    if (existingStatement && existingStatement.userId !== user.id) {
+      throw new Error("Unauthorized")
+    }
 
     await db
       .insert(appStatements)
@@ -153,6 +176,7 @@ export const saveCloudImport = createServerFn({ method: "POST" })
           filename: data.statement.filename,
           rowCount: String(data.statement.rowCount),
         },
+        where: eq(appStatements.userId, user.id),
       })
 
     if (data.transactions.length > 0) {
@@ -168,7 +192,7 @@ export const saveCloudImport = createServerFn({ method: "POST" })
               statementId: tx.statementId,
               date: tx.date,
               valueDate: tx.valueDate,
-              description: tx.description,
+              description: normalizeTransactionDescription(tx.description),
               debit: String(tx.debit),
               credit: String(tx.credit),
               amount: String(tx.amount),
@@ -181,7 +205,14 @@ export const saveCloudImport = createServerFn({ method: "POST" })
               raw: tx.raw ?? null,
             })),
           )
-          .onConflictDoNothing()
+          .onConflictDoNothing({
+            target: [
+              appTransactions.userId,
+              appTransactions.date,
+              appTransactions.description,
+              appTransactions.amount,
+            ],
+          })
       }
     }
 
@@ -357,23 +388,79 @@ export const filterCloudNewTransactions = createServerFn({ method: "POST" })
     const { user } = await requireServerSession()
     const db = getPgDb()
     const existing = await db
-      .select({
-        date: appTransactions.date,
-        description: appTransactions.description,
-        amount: appTransactions.amount,
-      })
+      .select()
       .from(appTransactions)
       .where(eq(appTransactions.userId, user.id))
 
-    const keys = new Set(
-      existing.map(
-        (t) => `${t.date}|${t.description}|${num(t.amount).toFixed(2)}`,
-      ),
+    const { unique } = partitionNewTransactions(
+      data.candidates,
+      existing.map(rowToTransaction),
     )
 
-    return {
-      transactions: data.candidates.filter(
-        (t) => !keys.has(`${t.date}|${t.description}|${t.amount.toFixed(2)}`),
-      ),
+    return { transactions: unique }
+  })
+
+export const fetchCloudCategories = createServerFn({ method: "POST" }).handler(
+  async () => {
+    const { user } = await requireServerSession()
+    const db = getPgDb()
+    const settingsRow = await db
+      .select()
+      .from(appUserSettings)
+      .where(eq(appUserSettings.userId, user.id))
+      .limit(1)
+
+    const customCategories =
+      (settingsRow[0]?.customCategories as Category[] | null) ?? []
+    return { categories: mergeCategories(customCategories) }
+  },
+)
+
+export const createCloudCategory = createServerFn({ method: "POST" })
+  .validator((data: { name: string; color?: string }) => data)
+  .handler(async ({ data }) => {
+    const trimmed = data.name.trim()
+    if (!trimmed) throw new Error("Category name is required")
+
+    const { user } = await requireServerSession()
+    const db = getPgDb()
+    const settingsRow = await db
+      .select()
+      .from(appUserSettings)
+      .where(eq(appUserSettings.userId, user.id))
+      .limit(1)
+
+    const existingCustom =
+      (settingsRow[0]?.customCategories as Category[] | null) ?? []
+
+    let id = slugifyCategoryName(trimmed)
+    let suffix = 2
+    while (existingCustom.some((c) => c.id === id)) {
+      id = `${slugifyCategoryName(trimmed)}_${suffix}`
+      suffix += 1
     }
+
+    const category: Category = {
+      id,
+      name: trimmed,
+      color: data.color ?? pickCustomCategoryColor(existingCustom.length),
+      custom: true,
+    }
+
+    const nextCustom = [...existingCustom, category]
+
+    await db
+      .insert(appUserSettings)
+      .values({
+        userId: user.id,
+        currency: "INR",
+        mistralModel: settingsRow[0]?.mistralModel ?? "mistral-small-latest",
+        customCategories: nextCustom,
+      })
+      .onConflictDoUpdate({
+        target: appUserSettings.userId,
+        set: { customCategories: nextCustom },
+      })
+
+    return { category, categories: mergeCategories(nextCustom) }
   })

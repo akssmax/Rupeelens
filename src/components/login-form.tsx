@@ -12,9 +12,28 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { authClient } from "@/lib/auth/client"
+import {
+  authErrorMessage,
+  ensureAuthSessionReady,
+} from "@/lib/auth/post-auth"
 import { emitFinanceRefresh } from "@/lib/finance-events"
 import { migrateIndexedDbToCloud } from "@/lib/migrate-local-to-cloud"
 import { cn } from "@/lib/utils"
+
+function syncLocalDataInBackground() {
+  void migrateIndexedDbToCloud()
+    .then((synced) => {
+      emitFinanceRefresh()
+      if (synced.transactions > 0) {
+        toast.success(
+          `Synced ${synced.transactions} local transactions to your account`,
+        )
+      }
+    })
+    .catch(() => {
+      /* user can retry from sidebar */
+    })
+}
 
 export function LoginForm({
   className,
@@ -29,18 +48,20 @@ export function LoginForm({
     event.preventDefault()
     setSubmitting(true)
     try {
-      await authClient.signIn.email({ email, password })
-      await authClient.getSession({ query: { disableCookieCache: true } })
-      const synced = await migrateIndexedDbToCloud().catch(() => null)
-      emitFinanceRefresh()
-      if (synced && synced.transactions > 0) {
-        toast.success(`Signed in — synced ${synced.transactions} local transactions`)
-      } else {
-        toast.success("Signed in")
+      const result = await authClient.signIn.email({ email, password })
+      if (result.error) {
+        throw new Error(
+          authErrorMessage(result.error, "Invalid email or password"),
+        )
       }
+
+      await ensureAuthSessionReady()
+      emitFinanceRefresh()
+      toast.success("Signed in")
       void navigate({ to: "/" })
+      syncLocalDataInBackground()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not sign in")
+      toast.error(authErrorMessage(e, "Could not sign in"))
     } finally {
       setSubmitting(false)
     }

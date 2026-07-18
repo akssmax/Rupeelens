@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { requireServerSession } from "@/lib/auth/session.server"
+import { normalizeTransactionDescription } from "@/lib/finance/transaction-dedupe"
 import { getPgDb } from "@/lib/db/pg"
 import {
   appMerchantMemory,
@@ -54,7 +55,7 @@ export const migrateLocalDataToCloud = createServerFn({ method: "POST" })
               statementId: tx.statementId,
               date: tx.date,
               valueDate: tx.valueDate,
-              description: tx.description,
+              description: normalizeTransactionDescription(tx.description),
               debit: String(tx.debit),
               credit: String(tx.credit),
               amount: String(tx.amount),
@@ -67,7 +68,14 @@ export const migrateLocalDataToCloud = createServerFn({ method: "POST" })
               raw: tx.raw ?? null,
             })),
           )
-          .onConflictDoNothing()
+          .onConflictDoNothing({
+            target: [
+              appTransactions.userId,
+              appTransactions.date,
+              appTransactions.description,
+              appTransactions.amount,
+            ],
+          })
       }
     }
 

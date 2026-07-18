@@ -59,4 +59,7 @@ export const appUserSettings = pgTable("app_user_settings", {
   currency: text("currency").notNull(),
   mistralModel: text("mistral_model").notNull(),
   lastImportAt: timestamp("last_import_at", { withTimezone: true }),
+  customCategories: jsonb("custom_categories").$type<
+    Array<{ id: string; name: string; color: string; custom?: boolean }>
+  >(),
 })

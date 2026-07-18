@@ -1,5 +1,11 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb"
-import { SEED_CATEGORIES } from "./categories"
+import {
+  pickCustomCategoryColor,
+  SEED_CATEGORIES,
+  slugifyCategoryName,
+  sortCategories,
+} from "./categories"
+import { partitionNewTransactions } from "./finance/transaction-dedupe"
 import type {
   AppSettings,
   Category,
@@ -73,14 +79,7 @@ export function getDb() {
 }
 
 async function seedIfNeeded(db: IDBPDatabase<FinanceDB>) {
-  const count = await db.count("categories")
-  if (count === 0) {
-    const tx = db.transaction("categories", "readwrite")
-    await Promise.all([
-      ...SEED_CATEGORIES.map((c) => tx.store.put(c)),
-      tx.done,
-    ])
-  }
+  await ensureBuiltinCategories(db)
   const settings = await db.get("settings", "settings")
   if (!settings) {
     await db.put("settings", {
@@ -89,6 +88,23 @@ async function seedIfNeeded(db: IDBPDatabase<FinanceDB>) {
       mistralModel: "mistral-small-latest",
     })
   }
+}
+
+async function ensureBuiltinCategories(db: IDBPDatabase<FinanceDB>) {
+  const existing = await db.getAll("categories")
+  const existingIds = new Set(existing.map((c) => c.id))
+  if (existing.length === 0) {
+    const tx = db.transaction("categories", "readwrite")
+    await Promise.all([
+      ...SEED_CATEGORIES.map((c) => tx.store.put(c)),
+      tx.done,
+    ])
+    return
+  }
+  const missing = SEED_CATEGORIES.filter((c) => !existingIds.has(c.id))
+  if (missing.length === 0) return
+  const tx = db.transaction("categories", "readwrite")
+  await Promise.all([...missing.map((c) => tx.store.put(c)), tx.done])
 }
 
 export async function getAllTransactions(): Promise<Transaction[]> {
@@ -112,7 +128,38 @@ export async function getAllStatements(): Promise<Statement[]> {
 
 export async function getCategories(): Promise<Category[]> {
   const db = await getDb()
-  return db.getAll("categories")
+  await ensureBuiltinCategories(db)
+  const all = await db.getAll("categories")
+  return sortCategories(all)
+}
+
+export async function createCustomCategory(
+  name: string,
+  color?: string,
+): Promise<Category> {
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error("Category name is required")
+
+  const db = await getDb()
+  await ensureBuiltinCategories(db)
+  const existing = await db.getAll("categories")
+
+  let id = slugifyCategoryName(trimmed)
+  let suffix = 2
+  while (existing.some((c) => c.id === id)) {
+    id = `${slugifyCategoryName(trimmed)}_${suffix}`
+    suffix += 1
+  }
+
+  const customCount = existing.filter((c) => c.custom).length
+  const category: Category = {
+    id,
+    name: trimmed,
+    color: color ?? pickCustomCategoryColor(customCount),
+    custom: true,
+  }
+  await db.put("categories", category)
+  return category
 }
 
 export async function getSettings(): Promise<AppSettings> {
@@ -247,19 +294,12 @@ export async function updateTransactionsBatch(
   await tx.done
 }
 
-/** Deduplicate by date + description + amount against existing DB rows */
+/** Deduplicate by date + normalized description + amount against existing DB rows */
 export async function filterNewTransactions(
   candidates: Transaction[],
 ): Promise<Transaction[]> {
   const existing = await getAllTransactions()
-  const keys = new Set(
-    existing.map(
-      (t) => `${t.date}|${t.description}|${t.amount.toFixed(2)}`,
-    ),
-  )
-  return candidates.filter(
-    (t) => !keys.has(`${t.date}|${t.description}|${t.amount.toFixed(2)}`),
-  )
+  return partitionNewTransactions(candidates, existing).unique
 }
 
 export async function clearAllData(): Promise<void> {

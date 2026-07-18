@@ -37,7 +37,7 @@ export function rowsToTransactions(
       statementId,
       date: row.date,
       valueDate: row.valueDate,
-      description: row.description,
+      description: row.description.trim().replace(/\s+/g, " "),
       debit: row.debit,
       credit: row.credit,
       amount: row.credit - row.debit,

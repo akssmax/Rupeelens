@@ -1,5 +1,6 @@
 import {
   getMerchantMemoryIndex,
+  getCategories,
   updateTransactionsBatch,
 } from "./finance/storage"
 import {
@@ -148,6 +149,7 @@ export async function runCategorization(
 
   // --- Layer 3: LLM ---
   const pending = needsLlm(scope, resolved)
+  const categoryIds = (await getCategories()).map((c) => c.id)
   onProgress?.({
     phase: "llm",
     done: resolved.size,
@@ -169,7 +171,7 @@ export async function runCategorization(
 
     try {
       const { results } = await categorizeTransactions({
-        data: { transactions: input },
+        data: { transactions: input, categoryIds },
       })
       const byId = new Map(results.map((r: CategorizeResult) => [r.id, r]))
       const updates: Array<{ id: string; patch: Partial<Transaction> }> = []

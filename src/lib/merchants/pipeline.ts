@@ -1,6 +1,7 @@
 import type { CategoryId, MerchantMemory, Transaction } from "../types"
 import { findCatalogMerchant } from "./catalog"
 import { extractMerchantName } from "./extract"
+import { matchKeywordCategory } from "./keyword-rules"
 import { lookupMerchantMemory } from "./memory"
 
 export type CategorizeSource = "rules" | "memory" | "llm"
@@ -24,15 +25,28 @@ export function applyRuleCategorization(
   const hits: LocalCategorizeHit[] = []
   for (const t of transactions) {
     const profile = findCatalogMerchant(t.description)
-    if (!profile) continue
-    hits.push({
-      id: t.id,
-      merchant: profile.name,
-      categoryId: profile.categoryId,
-      isSubscription: Boolean(profile.isSubscription),
-      confidence: 0.95,
-      source: "rules",
-    })
+    if (profile) {
+      hits.push({
+        id: t.id,
+        merchant: profile.name,
+        categoryId: profile.categoryId,
+        isSubscription: Boolean(profile.isSubscription),
+        confidence: 0.95,
+        source: "rules",
+      })
+      continue
+    }
+    const keyword = matchKeywordCategory(t.description)
+    if (keyword) {
+      hits.push({
+        id: t.id,
+        merchant: keyword.merchant,
+        categoryId: keyword.categoryId,
+        isSubscription: false,
+        confidence: keyword.confidence,
+        source: "rules",
+      })
+    }
   }
   return hits
 }

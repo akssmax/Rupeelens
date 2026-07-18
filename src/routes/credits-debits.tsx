@@ -37,6 +37,7 @@ function CreditsDebitsPage() {
     months,
     flow,
     changeCategory,
+    createCategory,
   } = useFinanceData()
   const [tab, setTab] = useState<"debits" | "credits">(searchTab ?? "debits")
 
@@ -118,6 +119,7 @@ function CreditsDebitsPage() {
               transactions={flow.debits}
               categories={categories}
               onCategoryChange={handleCategoryChange}
+              onCreateCategory={createCategory}
               toolbar="compact"
             />
           ) : (
@@ -125,6 +127,7 @@ function CreditsDebitsPage() {
               transactions={flow.credits}
               categories={categories}
               onCategoryChange={handleCategoryChange}
+              onCreateCategory={createCategory}
               toolbar="compact"
             />
           )}

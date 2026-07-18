@@ -6,6 +6,9 @@ import { authClient } from "./client"
 export async function getAuthRequestHeaders(): Promise<HeadersInit> {
   const result = await authClient.getSession({
     query: { disableCookieCache: true },
+    fetchOptions: {
+      headers: { "X-Force-Fetch": "true" },
+    },
   })
   const token = result.data?.session?.token
   if (!token) {

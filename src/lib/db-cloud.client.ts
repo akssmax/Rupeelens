@@ -2,6 +2,8 @@ import "@tanstack/react-start/client-only"
 
 import { getAuthRequestHeaders } from "@/lib/auth/request-headers.client"
 import {
+  createCloudCategory,
+  fetchCloudCategories,
   fetchCloudFinanceData,
   filterCloudNewTransactions,
   saveCloudImport,
@@ -11,6 +13,7 @@ import {
 } from "@/server/finance-data"
 import type {
   AppSettings,
+  Category,
   CategoryId,
   MerchantMemory,
   Statement,
@@ -39,6 +42,22 @@ export async function getMerchantMemory(): Promise<MerchantMemory[]> {
 export async function getSettings(): Promise<AppSettings> {
   const { settings } = await fetchCloudFinanceData(await authOpts())
   return settings
+}
+
+export async function getCategories(): Promise<Category[]> {
+  const { categories } = await fetchCloudCategories(await authOpts())
+  return categories
+}
+
+export async function createCategory(
+  name: string,
+  color?: string,
+): Promise<Category> {
+  const { category } = await createCloudCategory({
+    ...(await authOpts()),
+    data: { name, color },
+  })
+  return category
 }
 
 export async function saveImport(params: {

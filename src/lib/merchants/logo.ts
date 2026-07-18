@@ -64,6 +64,8 @@ export function categoryAccent(categoryId?: CategoryId): string {
     entertainment: "bg-violet-100 text-violet-700",
     health: "bg-pink-100 text-pink-700",
     travel: "bg-cyan-100 text-cyan-800",
+    wine: "bg-rose-100 text-rose-900",
+    alcohol: "bg-amber-100 text-amber-900",
     transfers: "bg-stone-200 text-stone-700",
     salary: "bg-teal-100 text-teal-800",
     investments: "bg-indigo-100 text-indigo-800",

@@ -238,6 +238,48 @@ export const MERCHANT_CATALOG: MerchantProfile[] = [
     categoryId: "cash",
     domain: "axisbank.com",
   },
+  {
+    id: "living-liquidz",
+    name: "Living Liquidz",
+    aliases: ["living liquidz", "livingliquidz"],
+    categoryId: "alcohol",
+    domain: "livingliquidz.com",
+  },
+  {
+    id: "hipbar",
+    name: "HipBar",
+    aliases: ["hipbar"],
+    categoryId: "alcohol",
+    domain: "hipbar.in",
+  },
+  {
+    id: "beer-cafe",
+    name: "The Beer Cafe",
+    aliases: ["beer cafe", "thebeercafe"],
+    categoryId: "alcohol",
+    domain: "thebeercafe.com",
+  },
+  {
+    id: "sula",
+    name: "Sula Vineyards",
+    aliases: ["sula vineyards", "sula wines", "sula"],
+    categoryId: "wine",
+    domain: "sula.com",
+  },
+  {
+    id: "grover-zampa",
+    name: "Grover Zampa",
+    aliases: ["grover zampa", "groverzampa"],
+    categoryId: "wine",
+    domain: "groverzampa.com",
+  },
+  {
+    id: "fratelli",
+    name: "Fratelli Wines",
+    aliases: ["fratelli wines", "fratelli"],
+    categoryId: "wine",
+    domain: "fratelliwines.in",
+  },
 ]
 
 const RANKED_CATALOG = [...MERCHANT_CATALOG].sort(

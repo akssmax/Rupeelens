@@ -9,6 +9,15 @@ export function getAuthUrl(): string {
   return AUTH_URL
 }
 
+/** JWT iss/aud claim base (Neon Auth host, without /neondb/auth path). */
+export function getNeonAuthIssuer(): string {
+  return new URL(getAuthUrl()).origin
+}
+
+export function getNeonAuthJwksUrl(): string {
+  return `${getAuthUrl()}/.well-known/jwks.json`
+}
+
 export function getDatabaseUrl(): string {
   const url =
     typeof process !== "undefined" ? process.env.DATABASE_URL : undefined

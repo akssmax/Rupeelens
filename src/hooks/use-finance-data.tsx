@@ -16,17 +16,18 @@ import {
   monthlySummary,
   weeklySpends,
 } from "@/lib/analytics"
-import { authClient } from "@/lib/auth/client"
 import { useAuthSession } from "@/lib/auth/use-auth-session"
 import {
   getAllStatements,
   getAllTransactions,
   getCategories,
+  createCategory as saveCategory,
   getFinanceStorageMode,
   setFinanceStorageMode,
   updateTransaction,
 } from "@/lib/finance/storage"
 import { onFinanceRefresh } from "@/lib/finance-events"
+import { sortCategories } from "@/lib/categories"
 import { rememberMerchantMapping } from "@/lib/merchants/memory"
 import type { Category, CategoryId, Statement, Transaction } from "@/lib/types"
 
@@ -52,6 +53,7 @@ type FinanceContextValue = {
     categoryId: CategoryId,
     merchant?: string,
   ) => Promise<void>
+  createCategory: (name: string, color?: string) => Promise<Category | null>
   isSignedIn: boolean
   isCloudSynced: boolean
 }
@@ -96,19 +98,39 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       if (id !== requestId.current) return
       const message = e instanceof Error ? e.message : String(e)
-      if (
+      const cloudAuthFailure =
         getFinanceStorageMode() === "cloud" &&
         (message === "Unauthorized" ||
           message.includes("Session expired") ||
           message.includes("sign in again"))
-      ) {
+
+      if (cloudAuthFailure) {
         setFinanceStorageMode("local")
         try {
-          await authClient.signOut()
-        } catch {
-          /* ignore */
+          const [txs, stmts, cats] = await Promise.all([
+            getAllTransactions(),
+            getAllStatements(),
+            getCategories(),
+          ])
+          if (id !== requestId.current) return
+          setTransactions(txs)
+          setStatements(stmts)
+          setCategories(cats)
+          const nextMonths = availableMonths(txs)
+          setMonth((prev) => {
+            if (prev && nextMonths.includes(prev)) return prev
+            return nextMonths[0] ?? ""
+          })
+          setError(
+            "Cloud sync unavailable — showing local browser data. Try “Sync local data” from the account menu.",
+          )
+        } catch (fallbackError) {
+          setError(
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : String(fallbackError),
+          )
         }
-        setError("Session expired — signed out. Import again while incognito or sign in.")
       } else {
         setError(message)
       }
@@ -131,8 +153,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     [transactions],
   )
   const summary = useMemo(
-    () => (month ? monthlySummary(transactions, month) : null),
-    [transactions, month],
+    () => (month ? monthlySummary(transactions, month, categories) : null),
+    [transactions, month, categories],
   )
   const weekly = useMemo(
     () => (month ? weeklySpends(transactions, month) : []),
@@ -179,6 +201,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     [refresh],
   )
 
+  const createCategory = useCallback(
+    async (name: string, color?: string) => {
+      try {
+        const category = await saveCategory(name, color)
+        setCategories((prev) =>
+          prev.some((c) => c.id === category.id)
+            ? prev
+            : sortCategories([...prev, category]),
+        )
+        return category
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+        return null
+      }
+    },
+    [],
+  )
+
   const transactionCount = transactions.length
 
   const value = useMemo<FinanceContextValue>(
@@ -200,6 +240,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       subscriptions,
       refresh,
       changeCategory,
+      createCategory,
       isSignedIn,
       isCloudSynced: isSignedIn,
     }),
@@ -220,6 +261,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       subscriptions,
       refresh,
       changeCategory,
+      createCategory,
       isSignedIn,
     ],
   )

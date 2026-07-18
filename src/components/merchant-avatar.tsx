@@ -2,6 +2,7 @@ import { memo, useMemo, useState } from "react"
 import type { LucideIcon } from "lucide-react"
 import {
   Banknote,
+  Beer,
   Bus,
   Clapperboard,
   HeartPulse,
@@ -18,6 +19,7 @@ import {
   Utensils,
   Wallet,
   Wifi,
+  Wine,
 } from "lucide-react"
 import { findCatalogMerchant } from "@/lib/merchants/catalog"
 import {
@@ -28,7 +30,7 @@ import {
 import type { CategoryId } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-const CATEGORY_ICONS: Record<CategoryId, LucideIcon> = {
+const CATEGORY_ICONS: Partial<Record<CategoryId, LucideIcon>> = {
   food: Utensils,
   groceries: ShoppingCart,
   transport: Bus,
@@ -38,6 +40,8 @@ const CATEGORY_ICONS: Record<CategoryId, LucideIcon> = {
   entertainment: Clapperboard,
   health: HeartPulse,
   travel: Plane,
+  wine: Wine,
+  alcohol: Beer,
   transfers: UserRound,
   salary: Landmark,
   investments: TrendingUp,
@@ -72,7 +76,7 @@ export const MerchantAvatar = memo(function MerchantAvatar({
   const showImage = Boolean(src) && !failed
   const Icon = isPerson
     ? UserRound
-    : CATEGORY_ICONS[resolvedCategory ?? "uncategorized"]
+    : (CATEGORY_ICONS[resolvedCategory ?? "uncategorized"] ?? Wallet)
   const accent = isPerson
     ? "bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-200"
     : categoryAccent(resolvedCategory)
