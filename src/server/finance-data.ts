@@ -51,7 +51,7 @@ function rowToTransaction(row: typeof appTransactions.$inferSelect): Transaction
     statementId: row.statementId,
     date: row.date,
     valueDate: row.valueDate ?? undefined,
-    description: row.description,
+    description: normalizeTransactionDescription(row.description),
     debit: num(row.debit),
     credit: num(row.credit),
     amount: num(row.amount),
@@ -154,6 +154,16 @@ export const saveCloudImport = createServerFn({ method: "POST" })
       throw new Error("Unauthorized")
     }
 
+    const existingTransactions = await db
+      .select()
+      .from(appTransactions)
+      .where(eq(appTransactions.userId, user.id))
+
+    const { unique: toInsert, skippedDuplicates } = partitionNewTransactions(
+      data.transactions,
+      existingTransactions.map(rowToTransaction),
+    )
+
     await db
       .insert(appStatements)
       .values({
@@ -165,7 +175,7 @@ export const saveCloudImport = createServerFn({ method: "POST" })
         periodEnd: data.statement.periodEnd,
         uploadedAt: new Date(data.statement.uploadedAt),
         filename: data.statement.filename,
-        rowCount: String(data.statement.rowCount),
+        rowCount: String(toInsert.length),
       })
       .onConflictDoUpdate({
         target: appStatements.id,
@@ -176,15 +186,15 @@ export const saveCloudImport = createServerFn({ method: "POST" })
           periodEnd: data.statement.periodEnd,
           uploadedAt: new Date(data.statement.uploadedAt),
           filename: data.statement.filename,
-          rowCount: String(data.statement.rowCount),
+          rowCount: String(toInsert.length),
         },
         where: eq(appStatements.userId, user.id),
       })
 
-    if (data.transactions.length > 0) {
+    if (toInsert.length > 0) {
       const chunkSize = 200
-      for (let i = 0; i < data.transactions.length; i += chunkSize) {
-        const chunk = data.transactions.slice(i, i + chunkSize)
+      for (let i = 0; i < toInsert.length; i += chunkSize) {
+        const chunk = toInsert.slice(i, i + chunkSize)
         await db
           .insert(appTransactions)
           .values(
@@ -231,6 +241,11 @@ export const saveCloudImport = createServerFn({ method: "POST" })
         target: appUserSettings.userId,
         set: { lastImportAt: now },
       })
+
+    return {
+      inserted: toInsert.length,
+      skippedDuplicates,
+    }
   })
 
 export const updateCloudTransaction = createServerFn({ method: "POST" })
@@ -441,12 +456,12 @@ export const filterCloudNewTransactions = createServerFn({ method: "POST" })
       .from(appTransactions)
       .where(eq(appTransactions.userId, user.id))
 
-    const { unique } = partitionNewTransactions(
+    const { unique, skippedDuplicates } = partitionNewTransactions(
       data.candidates,
       existing.map(rowToTransaction),
     )
 
-    return { transactions: unique }
+    return { transactions: unique, skippedDuplicates }
   })
 
 export const fetchCloudCategories = createServerFn({ method: "POST" }).handler(

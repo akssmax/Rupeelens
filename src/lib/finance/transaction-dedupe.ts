@@ -5,10 +5,21 @@ export function normalizeTransactionDescription(description: string): string {
   return description.trim().replace(/\s+/g, " ")
 }
 
-/** Stable fingerprint for duplicate detection (per user). */
+/** UPI narrations embed a stable reference id regardless of bank suffix padding. */
+export function extractUpiReference(description: string): string | undefined {
+  const match = description.match(/UPI\/P2[AM]\/(\d+)\//i)
+  return match?.[1]
+}
+
+/** Prefer bank ref / UPI id so overlapping statement formats dedupe correctly. */
 export function transactionDedupeKey(
-  tx: Pick<Transaction, "date" | "description" | "amount">,
+  tx: Pick<Transaction, "date" | "description" | "amount" | "bankRef">,
 ): string {
+  const upiRef = tx.bankRef || extractUpiReference(tx.description)
+  if (upiRef) {
+    return `${tx.date}|upi:${upiRef}|${tx.amount.toFixed(2)}`
+  }
+
   const description = normalizeTransactionDescription(tx.description)
   return `${tx.date}|${description}|${tx.amount.toFixed(2)}`
 }

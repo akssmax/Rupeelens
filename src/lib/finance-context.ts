@@ -6,13 +6,79 @@ import {
   monthlySummary,
   weeklySpends,
 } from "./analytics"
-import { mergeCategories, SEED_CATEGORIES } from "./categories"
+import { mergeCategories, resolveCategoryName, SEED_CATEGORIES } from "./categories"
 import { formatINR, formatMonthLabel } from "./format"
 import { extractMerchantName } from "./merchants/extract"
 import type { Category, Transaction } from "./types"
 
 export function isNeedsReviewTransaction(tx: Transaction): boolean {
   return tx.categoryId === "uncategorized" || !tx.merchant
+}
+
+/** Merchant ledger for chat categorization — includes already-mapped merchants. */
+export function buildMerchantCategoryContext(
+  transactions: Transaction[],
+  categories: Category[] = [],
+): string {
+  if (transactions.length === 0) {
+    return "No transactions imported yet."
+  }
+
+  const byMerchant = new Map<
+    string,
+    {
+      categoryId: string
+      count: number
+      total: number
+      lastDate: string
+    }
+  >()
+
+  for (const tx of transactions) {
+    const merchant = tx.merchant || extractMerchantName(tx.description) || "Unknown"
+    const prev = byMerchant.get(merchant) ?? {
+      categoryId: tx.categoryId,
+      count: 0,
+      total: 0,
+      lastDate: "",
+    }
+    prev.count += 1
+    prev.total += tx.debit > 0 ? tx.debit : tx.credit
+    if (tx.date > prev.lastDate) prev.lastDate = tx.date
+    if (prev.categoryId === "uncategorized" && tx.categoryId !== "uncategorized") {
+      prev.categoryId = tx.categoryId
+    }
+    byMerchant.set(merchant, prev)
+  }
+
+  const merchantLines = [...byMerchant.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 80)
+    .map(([merchant, stats]) => {
+      const categoryName =
+        resolveCategoryName(stats.categoryId) || stats.categoryId
+      return `${merchant} | ${categoryName} | ${stats.count} txns | ${formatINR(stats.total)} | last ${stats.lastDate}`
+    })
+
+  const uncategorizedCount = transactions.filter(
+    (tx) => tx.categoryId === "uncategorized" || !tx.merchant,
+  ).length
+
+  const allCategories = categories.length
+    ? mergeCategories(categories.filter((c) => c.custom))
+    : SEED_CATEGORIES
+  const categoryLines = allCategories
+    .filter((c) => c.id !== "uncategorized")
+    .map((c) => `${c.id}: ${c.name}`)
+
+  return [
+    `Total transactions: ${transactions.length}`,
+    `Uncategorized: ${uncategorizedCount}`,
+    "## Merchants (current category)",
+    ...merchantLines,
+    "## Available categories",
+    ...categoryLines,
+  ].join("\n")
 }
 
 /** Compact list of uncategorized merchants for chat categorization intent parsing. */

@@ -1,4 +1,4 @@
-import { isNeedsReviewTransaction } from "./finance-context"
+import { resolveCategoryName } from "./categories"
 import { formatINR } from "./format"
 import { extractMerchantName } from "./merchants/extract"
 import { merchantKeyFromDescription } from "./merchants/keys"
@@ -12,6 +12,9 @@ export type CategorizationAction = {
 
 export type CategorizationPreview = CategorizationAction & {
   matched: Transaction[]
+  toUpdate: Transaction[]
+  alreadyCorrect: Transaction[]
+  currentCategoryName?: string
   skippedReason?: string
 }
 
@@ -38,8 +41,6 @@ export function merchantMatchesQuery(
   tx: Transaction,
   merchantQuery: string,
 ): boolean {
-  if (!isNeedsReviewTransaction(tx)) return false
-
   const query = normalizeQuery(merchantQuery)
   if (!query || query.length < 2) return false
 
@@ -56,11 +57,35 @@ export function merchantMatchesQuery(
   return false
 }
 
-export function matchUncategorizedTransactions(
+export function matchMerchantTransactions(
   transactions: Transaction[],
   merchantQuery: string,
 ): Transaction[] {
   return transactions.filter((tx) => merchantMatchesQuery(tx, merchantQuery))
+}
+
+/** @deprecated Use matchMerchantTransactions — kept for tests referencing uncategorized-only flows */
+export function matchUncategorizedTransactions(
+  transactions: Transaction[],
+  merchantQuery: string,
+): Transaction[] {
+  return matchMerchantTransactions(transactions, merchantQuery).filter(
+    (tx) => tx.categoryId === "uncategorized" || !tx.merchant,
+  )
+}
+
+function dominantCurrentCategory(transactions: Transaction[]): string | undefined {
+  if (transactions.length === 0) return undefined
+
+  const counts = new Map<string, number>()
+  for (const tx of transactions) {
+    const name = resolveCategoryName(tx.categoryId) || tx.categoryId
+    counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1])
+  if (sorted.length === 1) return sorted[0]?.[0]
+  return "Mixed"
 }
 
 export function previewCategorizationActions(
@@ -68,17 +93,26 @@ export function previewCategorizationActions(
   actions: CategorizationAction[],
 ): CategorizationPreview[] {
   return actions.map((action) => {
-    const matched = matchUncategorizedTransactions(
-      transactions,
-      action.merchantQuery,
+    const matched = matchMerchantTransactions(transactions, action.merchantQuery)
+    const toUpdate = matched.filter((tx) => tx.categoryId !== action.categoryId)
+    const alreadyCorrect = matched.filter(
+      (tx) => tx.categoryId === action.categoryId,
     )
+
+    let skippedReason: string | undefined
+    if (matched.length === 0) {
+      skippedReason = `No transactions match "${action.merchantQuery}"`
+    } else if (toUpdate.length === 0) {
+      skippedReason = `All ${matched.length} ${action.merchantQuery} transaction${matched.length === 1 ? "" : "s"} already in ${action.categoryName}`
+    }
+
     return {
       ...action,
       matched,
-      skippedReason:
-        matched.length === 0
-          ? `No uncategorized transactions match "${action.merchantQuery}"`
-          : undefined,
+      toUpdate,
+      alreadyCorrect,
+      currentCategoryName: dominantCurrentCategory(toUpdate),
+      skippedReason,
     }
   })
 }
@@ -108,9 +142,9 @@ export function buildCategorizationUpdates(
 
 export function formatPreviewSummary(previews: CategorizationPreview[]): string {
   const lines = previews
-    .filter((p) => p.matched.length > 0)
+    .filter((p) => p.toUpdate.length > 0)
     .map((p) => {
-      const sample = p.matched
+      const sample = p.toUpdate
         .slice(0, 3)
         .map((tx) => {
           const amt =
@@ -118,16 +152,25 @@ export function formatPreviewSummary(previews: CategorizationPreview[]): string 
           return `${tx.date} ${amt}`
         })
         .join(", ")
-      return `- **${p.merchantQuery}** → ${p.categoryName} (${p.matched.length} txn${p.matched.length === 1 ? "" : "s"}${sample ? `: ${sample}` : ""})`
+      const from =
+        p.currentCategoryName && p.currentCategoryName !== p.categoryName
+          ? ` (from ${p.currentCategoryName})`
+          : ""
+      const skipped =
+        p.alreadyCorrect.length > 0
+          ? `, ${p.alreadyCorrect.length} already in ${p.categoryName}`
+          : ""
+      return `- **${p.merchantQuery}** → ${p.categoryName}${from}: ${p.toUpdate.length} to update${skipped}${sample ? ` — ${sample}` : ""}`
     })
 
-  const skipped = previews.filter((p) => p.matched.length === 0)
+  const skipped = previews.filter(
+    (p) => p.matched.length === 0 || p.toUpdate.length === 0,
+  )
   if (skipped.length) {
     lines.push(
-      ...skipped.map(
-        (p) =>
-          `- **${p.merchantQuery}**: no uncategorized matches found`,
-      ),
+      ...skipped
+        .filter((p) => p.skippedReason)
+        .map((p) => `- **${p.merchantQuery}**: ${p.skippedReason}`),
     )
   }
 
@@ -138,12 +181,15 @@ export function looksLikeCategorizationRequest(message: string): boolean {
   const lower = message.toLowerCase()
   const patterns = [
     /\bbelongs?\s+to\b/,
+    /\bbelongs?\s+in\b/,
     /\bcategor(?:ize|y|ise)\b/,
     /\bset\s+.+\s+as\b/,
     /\bupdate\s+(the\s+)?transactions?\b/,
     /\bmark\s+.+\s+as\b/,
     /\bassign\s+.+\s+to\b/,
     /\bput\s+.+\s+(?:in|under)\b/,
+    /\bmove\s+.+\s+to\b/,
+    /\bchange\s+.+\s+to\b/,
   ]
   return patterns.some((pattern) => pattern.test(lower))
 }

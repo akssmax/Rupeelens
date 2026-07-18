@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   ChevronsUpDown,
   CloudUpload,
+  FileStack,
   Ghost,
   LayoutDashboard,
   Loader2,
@@ -60,6 +61,10 @@ const nav = [
   { to: "/spending", label: "Spending", icon: Wallet },
   { to: "/subscriptions", label: "Subscriptions", icon: Repeat },
   { to: "/credits-debits", label: "Credits / Debits", icon: ArrowLeftRight },
+] as const
+
+const signedInNav = [
+  { to: "/sources", label: "Sources", icon: FileStack },
 ] as const
 
 const INCOGNITO_USER = {
@@ -183,7 +188,7 @@ export const AppSidebar = memo(function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {nav.map((item) => {
+              {[...nav, ...(signedIn ? signedInNav : [])].map((item) => {
                 const active =
                   item.to === "/"
                     ? pathname === "/"

@@ -47,7 +47,7 @@ import {
 } from "@/lib/chat-categorize"
 import {
   buildFinanceContext,
-  buildUncategorizedMerchantsContext,
+  buildMerchantCategoryContext,
 } from "@/lib/finance-context"
 import { chatWithFinance, type ChatMessage } from "@/server/chat"
 import { parseChatCategorization } from "@/server/chat-categorize"
@@ -76,7 +76,7 @@ const SUGGESTION_POOL = [
   "Any recurring charges I should review?",
   "Break down my weekend vs weekday spending",
   "Which uncategorized transactions need attention?",
-  "Bistro belongs to food — update uncategorized transactions",
+  "Bistro belongs in food — update all Bistro transactions",
   "How much did I spend on UPI person-to-person transfers?",
   "What did I spend on travel and commute?",
 ]
@@ -153,7 +153,7 @@ export function AiSidepanel({
         }
 
         if (looksLikeCategorizationRequest(trimmed)) {
-          const uncategorizedContext = buildUncategorizedMerchantsContext(
+          const merchantContext = buildMerchantCategoryContext(
             transactions,
             categories,
           )
@@ -165,7 +165,7 @@ export function AiSidepanel({
                 role,
                 content,
               })),
-              uncategorizedContext,
+              merchantContext,
               categoryIds,
             },
           })
@@ -175,12 +175,12 @@ export function AiSidepanel({
               transactions,
               parsed.actions,
             )
-            const hasMatches = previews.some(
-              (preview) => preview.matched.length > 0,
+            const hasUpdates = previews.some(
+              (preview) => preview.toUpdate.length > 0,
             )
             const summary = formatPreviewSummary(previews)
-            const reply = hasMatches
-              ? `${parsed.reply}\n\n${summary}\n\nConfirm below to update uncategorized transactions.`
+            const reply = hasUpdates
+              ? `${parsed.reply}\n\n${summary}\n\nConfirm below to apply these changes.`
               : parsed.reply
 
             setMessages((prev) => [
@@ -189,7 +189,7 @@ export function AiSidepanel({
                 id: crypto.randomUUID(),
                 role: "assistant",
                 content: reply,
-                categorization: hasMatches
+                categorization: hasUpdates
                   ? { previews, status: "pending" }
                   : undefined,
               },
@@ -268,19 +268,11 @@ export function AiSidepanel({
                 .join(" ")
             : "No transactions were updated."
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: summary,
-          },
-        ])
-        toast.success(
-          result.updated > 0
-            ? `Updated ${result.updated} transaction${result.updated === 1 ? "" : "s"}`
-            : "No transactions updated",
-        )
+        if (result.updated > 0) {
+          toast.success(summary)
+        } else {
+          toast.message(summary)
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         toast.error(msg)
@@ -305,14 +297,7 @@ export function AiSidepanel({
           : message,
       ),
     )
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: "Category update cancelled.",
-      },
-    ])
+    toast.message("Category update cancelled")
   }, [])
 
   const handleSubmit = (message: PromptInputMessage) => {

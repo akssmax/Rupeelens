@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  extractUpiReference,
   normalizeTransactionDescription,
   partitionNewTransactions,
   transactionDedupeKey,
@@ -26,10 +27,51 @@ describe("transactionDedupeKey", () => {
     expect(transactionDedupeKey(a)).toBe(transactionDedupeKey(b))
   })
 
+  it("treats UPI rows with different padding as the same", () => {
+    const a = tx({
+      date: "2026-07-14",
+      description:
+        "UPI/P2M/938030420294/GK WINES             /Paymen/YES BANK LIMITED YBS",
+      amount: -1965,
+    })
+    const b = tx({
+      date: "2026-07-14",
+      description: "UPI/P2M/938030420294/GK WINES /Paymen/YES BANK LIMITED YBS",
+      amount: -1965,
+    })
+    expect(transactionDedupeKey(a)).toBe(transactionDedupeKey(b))
+  })
+
+  it("uses bankRef when present", () => {
+    const a = tx({
+      date: "2026-01-01",
+      description: "NEFT transfer",
+      bankRef: "938030420294",
+      amount: -1000,
+    })
+    const b = tx({
+      date: "2026-01-01",
+      description: "Different narration",
+      bankRef: "938030420294",
+      amount: -1000,
+    })
+    expect(transactionDedupeKey(a)).toBe(transactionDedupeKey(b))
+  })
+
   it("keeps different amounts separate", () => {
     const a = tx({ date: "2026-01-01", description: "UPI/SWIGGY", amount: -420 })
     const b = tx({ date: "2026-01-01", description: "UPI/SWIGGY", amount: -421 })
     expect(transactionDedupeKey(a)).not.toBe(transactionDedupeKey(b))
+  })
+})
+
+describe("extractUpiReference", () => {
+  it("extracts the stable UPI id from narrations", () => {
+    expect(
+      extractUpiReference(
+        "UPI/P2M/938030420294/GK WINES /Paymen/YES BANK LIMITED YBS",
+      ),
+    ).toBe("938030420294")
   })
 })
 

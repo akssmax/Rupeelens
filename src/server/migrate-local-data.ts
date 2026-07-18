@@ -1,6 +1,10 @@
 import { createServerFn } from "@tanstack/react-start"
+import { eq } from "drizzle-orm"
 import { requireServerSession } from "@/lib/auth/session.server"
-import { normalizeTransactionDescription } from "@/lib/finance/transaction-dedupe"
+import {
+  normalizeTransactionDescription,
+  partitionNewTransactions,
+} from "@/lib/finance/transaction-dedupe"
 import { getPgDb } from "@/lib/db/pg"
 import {
   appMerchantMemory,
@@ -9,6 +13,33 @@ import {
   appUserSettings,
 } from "@/lib/db/schema"
 import type { MerchantMemory, Statement, Transaction } from "@/lib/types"
+
+function num(value: string | number | null | undefined): number {
+  if (value == null) return 0
+  return typeof value === "number" ? value : Number(value)
+}
+
+function rowToTransaction(row: typeof appTransactions.$inferSelect): Transaction {
+  return {
+    id: row.id,
+    statementId: row.statementId,
+    date: row.date,
+    valueDate: row.valueDate ?? undefined,
+    description: row.description,
+    debit: num(row.debit),
+    credit: num(row.credit),
+    amount: num(row.amount),
+    balance: row.balance != null ? num(row.balance) : undefined,
+    bankRef: row.bankRef ?? undefined,
+    categoryId: row.categoryId,
+    categorySource:
+      (row.categorySource as Transaction["categorySource"]) ?? undefined,
+    merchant: row.merchant ?? undefined,
+    isSubscription: row.isSubscription ?? undefined,
+    confidence: row.confidence != null ? num(row.confidence) : undefined,
+    raw: (row.raw as Record<string, string> | null) ?? undefined,
+  }
+}
 
 export const migrateLocalDataToCloud = createServerFn({ method: "POST" })
   .validator(
@@ -22,6 +53,17 @@ export const migrateLocalDataToCloud = createServerFn({ method: "POST" })
     const { user } = await requireServerSession()
     const db = getPgDb()
     const now = new Date()
+
+    const existingTransactions = await db
+      .select()
+      .from(appTransactions)
+      .where(eq(appTransactions.userId, user.id))
+
+    const { unique: newTransactions, skippedDuplicates } =
+      partitionNewTransactions(
+        data.transactions,
+        existingTransactions.map(rowToTransaction),
+      )
 
     if (data.statements.length > 0) {
       await db
@@ -42,10 +84,10 @@ export const migrateLocalDataToCloud = createServerFn({ method: "POST" })
         .onConflictDoNothing()
     }
 
-    if (data.transactions.length > 0) {
+    if (newTransactions.length > 0) {
       const chunkSize = 200
-      for (let i = 0; i < data.transactions.length; i += chunkSize) {
-        const chunk = data.transactions.slice(i, i + chunkSize)
+      for (let i = 0; i < newTransactions.length; i += chunkSize) {
+        const chunk = newTransactions.slice(i, i + chunkSize)
         await db
           .insert(appTransactions)
           .values(
@@ -124,6 +166,7 @@ export const migrateLocalDataToCloud = createServerFn({ method: "POST" })
     return {
       ok: true as const,
       statements: data.statements.length,
-      transactions: data.transactions.length,
+      transactions: newTransactions.length,
+      skippedDuplicates,
     }
   })

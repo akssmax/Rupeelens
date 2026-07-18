@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   looksLikeCategorizationRequest,
+  matchMerchantTransactions,
   matchUncategorizedTransactions,
   previewCategorizationActions,
 } from "./chat-categorize"
@@ -48,33 +49,39 @@ describe("chat categorization matching", () => {
       id: "4",
       description: "UPI/P2M/123/GK WINES /Pay vi/HDFC BANK LTD",
       merchant: "Gk Wines",
+      categoryId: "other",
     }),
   ]
 
-  it("matches Bistro uncategorized UPI transactions", () => {
+  it("matches all Bistro transactions including already categorized", () => {
+    const matched = matchMerchantTransactions(transactions, "Bistro")
+    expect(matched.map((tx) => tx.id)).toEqual(["1", "2", "3"])
+  })
+
+  it("matches uncategorized Bistro transactions only via legacy helper", () => {
     const matched = matchUncategorizedTransactions(transactions, "Bistro")
     expect(matched.map((tx) => tx.id)).toEqual(["1", "2"])
   })
 
-  it("does not match already categorized transactions", () => {
-    const matched = matchUncategorizedTransactions(transactions, "food")
-    expect(matched).toHaveLength(0)
-  })
-
-  it("matches multi-word merchant queries", () => {
-    const matched = matchUncategorizedTransactions(transactions, "Gk Wines")
+  it("matches multi-word merchant queries across categories", () => {
+    const matched = matchMerchantTransactions(transactions, "Gk Wines")
     expect(matched.map((tx) => tx.id)).toEqual(["4"])
   })
 
   it("returns zero matches for unknown merchants", () => {
-    const matched = matchUncategorizedTransactions(transactions, "Zomato")
+    const matched = matchMerchantTransactions(transactions, "Zomato")
     expect(matched).toHaveLength(0)
   })
 
-  it("builds previews with skipped reasons for empty matches", () => {
+  it("splits previews into toUpdate and alreadyCorrect", () => {
     const previews = previewCategorizationActions(transactions, [
       {
         merchantQuery: "Bistro",
+        categoryId: "food",
+        categoryName: "Food",
+      },
+      {
+        merchantQuery: "Gk Wines",
         categoryId: "food",
         categoryName: "Food",
       },
@@ -85,9 +92,33 @@ describe("chat categorization matching", () => {
       },
     ])
 
-    expect(previews[0]?.matched).toHaveLength(2)
-    expect(previews[1]?.matched).toHaveLength(0)
-    expect(previews[1]?.skippedReason).toContain("Zomato")
+    expect(previews[0]?.matched).toHaveLength(3)
+    expect(previews[0]?.toUpdate.map((tx) => tx.id)).toEqual(["1", "2"])
+    expect(previews[0]?.alreadyCorrect.map((tx) => tx.id)).toEqual(["3"])
+    expect(previews[0]?.currentCategoryName).toBe("Uncategorized")
+
+    expect(previews[1]?.toUpdate.map((tx) => tx.id)).toEqual(["4"])
+    expect(previews[1]?.currentCategoryName).toBe("Other")
+
+    expect(previews[2]?.matched).toHaveLength(0)
+    expect(previews[2]?.skippedReason).toContain("Zomato")
+  })
+
+  it("marks all-already-correct previews with skipped reason", () => {
+    const onlyFood = transactions.map((tx) =>
+      tx.merchant === "Bistro" ? { ...tx, categoryId: "food" as const } : tx,
+    )
+    const result = previewCategorizationActions(onlyFood, [
+      {
+        merchantQuery: "Bistro",
+        categoryId: "food",
+        categoryName: "Food",
+      },
+    ])
+
+    expect(result[0]?.toUpdate).toHaveLength(0)
+    expect(result[0]?.alreadyCorrect).toHaveLength(3)
+    expect(result[0]?.skippedReason).toContain("already in Food")
   })
 })
 
@@ -97,6 +128,9 @@ describe("looksLikeCategorizationRequest", () => {
       looksLikeCategorizationRequest(
         "Bistro belongs to food, update the transactions",
       ),
+    ).toBe(true)
+    expect(
+      looksLikeCategorizationRequest("Move Bistro to food category"),
     ).toBe(true)
     expect(looksLikeCategorizationRequest("How much did I spend on food?")).toBe(
       false,

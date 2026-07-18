@@ -16,15 +16,9 @@ export function CategorizationConfirmCard({
   onConfirm: () => void
   onCancel: () => void
 }) {
-  const applicable = previews.filter((preview) => preview.matched.length > 0)
+  const applicable = previews.filter((preview) => preview.toUpdate.length > 0)
 
-  if (status === "cancelled") {
-    return (
-      <p className="text-muted-foreground text-sm">Category update cancelled.</p>
-    )
-  }
-
-  if (status === "confirmed") {
+  if (status === "cancelled" || status === "confirmed") {
     return null
   }
 
@@ -44,18 +38,25 @@ export function CategorizationConfirmCard({
               {preview.merchantQuery} → {preview.categoryName}
             </p>
             <p className="text-muted-foreground text-xs">
-              {preview.matched.length} uncategorized transaction
-              {preview.matched.length === 1 ? "" : "s"}
+              {preview.toUpdate.length} transaction
+              {preview.toUpdate.length === 1 ? "" : "s"} will update
+              {preview.currentCategoryName &&
+              preview.currentCategoryName !== preview.categoryName
+                ? ` (was: ${preview.currentCategoryName})`
+                : ""}
+              {preview.alreadyCorrect.length > 0
+                ? ` · ${preview.alreadyCorrect.length} already in ${preview.categoryName}`
+                : ""}
             </p>
             <ul className="text-muted-foreground space-y-0.5 text-xs">
-              {preview.matched.slice(0, 4).map((tx) => (
+              {preview.toUpdate.slice(0, 4).map((tx) => (
                 <li key={tx.id}>
                   {tx.date} ·{" "}
                   {tx.debit > 0 ? formatINR(tx.debit) : formatINR(tx.credit)}
                 </li>
               ))}
-              {preview.matched.length > 4 ? (
-                <li>+{preview.matched.length - 4} more</li>
+              {preview.toUpdate.length > 4 ? (
+                <li>+{preview.toUpdate.length - 4} more</li>
               ) : null}
             </ul>
           </div>

@@ -1,4 +1,5 @@
 import { parseBankCsv } from "./banks"
+import { extractUpiReference } from "./finance/transaction-dedupe"
 import {
   filterNewTransactions,
   getMerchantMemoryIndex,
@@ -32,17 +33,20 @@ export function rowsToTransactions(
       ? undefined
       : lookupMerchantMemory(row.description, merchant, memory)
 
+    const description = row.description.trim().replace(/\s+/g, " ")
+    const bankRef = row.bankRef || extractUpiReference(description)
+
     return {
       id: uid("tx"),
       statementId,
       date: row.date,
       valueDate: row.valueDate,
-      description: row.description.trim().replace(/\s+/g, " "),
+      description,
       debit: row.debit,
       credit: row.credit,
       amount: row.credit - row.debit,
       balance: row.balance,
-      bankRef: row.bankRef,
+      bankRef,
       categoryId: catalog?.categoryId ?? memoryHit?.categoryId ?? "uncategorized",
       merchant,
       isSubscription:

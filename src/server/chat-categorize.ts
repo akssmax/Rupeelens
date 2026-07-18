@@ -23,7 +23,7 @@ function buildSystemPrompt(categoryIds: string[]): string {
     ]),
   ]
 
-  return `You parse natural-language requests to categorize uncategorized bank transactions in RupeeLens.
+  return `You parse natural-language requests to categorize or recategorize bank transactions in RupeeLens.
 Return JSON only:
 {
   "intent": "categorize" | "none",
@@ -34,15 +34,16 @@ Return JSON only:
 }
 
 Rules:
-- intent "categorize" only when the user assigns merchants to categories or asks to update transaction categories
+- intent "categorize" when the user assigns merchants to categories, recategorizes mapped merchants, or asks to update transaction categories
 - intent "none" for questions, analysis, or when merchant/category is ambiguous — reply should ask for clarification
-- merchantQuery must match a merchant from the uncategorized context (exact or close spelling)
+- merchantQuery must match a merchant from the merchant ledger context (exact or close spelling)
 - categoryId MUST be one of: ${ids.join(", ")}
 - categoryName is the human-readable category label
 - Support multiple merchants in one message (e.g. "Bistro and Gk Wines are food")
+- Support remapping already-categorized merchants (e.g. "Bistro belongs in food" even if Bistro is currently Other)
 - Map natural language to categories: dining/restaurant → food, liquor/beer → alcohol, wine shop → wine
-- Never invent merchants not listed in the uncategorized context
-- reply should summarize what will be updated and ask the user to confirm (do not claim changes are already applied)
+- Never invent merchants not listed in the merchant ledger
+- reply should summarize what will change (mention current category if remapping) and ask the user to confirm — do not claim changes are already applied
 Return only valid JSON, no markdown.`
 }
 
@@ -58,7 +59,7 @@ export const parseChatCategorization = createServerFn({ method: "POST" })
     (data: {
       message: string
       recentMessages?: ChatMessage[]
-      uncategorizedContext: string
+      merchantContext: string
       categoryIds?: string[]
       model?: string
     }) => data,
@@ -69,9 +70,9 @@ export const parseChatCategorization = createServerFn({ method: "POST" })
     const userContent = [
       `User message: ${data.message}`,
       "",
-      "--- UNCategorized CONTEXT ---",
-      data.uncategorizedContext,
-      "--- END CONTEXT ---",
+      "--- MERCHANT LEDGER ---",
+      data.merchantContext,
+      "--- END LEDGER ---",
     ].join("\n")
 
     const content = await mistralChat({

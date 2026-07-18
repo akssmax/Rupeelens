@@ -13,6 +13,7 @@ import { Route as UploadRouteImport } from './routes/upload'
 import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as SubscriptionsRouteImport } from './routes/subscriptions'
 import { Route as SpendingRouteImport } from './routes/spending'
+import { Route as SourcesRouteImport } from './routes/sources'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as CreditsDebitsRouteImport } from './routes/credits-debits'
@@ -36,6 +37,11 @@ const SubscriptionsRoute = SubscriptionsRouteImport.update({
 const SpendingRoute = SpendingRouteImport.update({
   id: '/spending',
   path: '/spending',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SourcesRoute = SourcesRouteImport.update({
+  id: '/sources',
+  path: '/sources',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/credits-debits': typeof CreditsDebitsRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/sources': typeof SourcesRoute
   '/spending': typeof SpendingRoute
   '/subscriptions': typeof SubscriptionsRoute
   '/transactions': typeof TransactionsRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/credits-debits': typeof CreditsDebitsRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/sources': typeof SourcesRoute
   '/spending': typeof SpendingRoute
   '/subscriptions': typeof SubscriptionsRoute
   '/transactions': typeof TransactionsRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/credits-debits': typeof CreditsDebitsRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/sources': typeof SourcesRoute
   '/spending': typeof SpendingRoute
   '/subscriptions': typeof SubscriptionsRoute
   '/transactions': typeof TransactionsRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/credits-debits'
     | '/login'
     | '/signup'
+    | '/sources'
     | '/spending'
     | '/subscriptions'
     | '/transactions'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/credits-debits'
     | '/login'
     | '/signup'
+    | '/sources'
     | '/spending'
     | '/subscriptions'
     | '/transactions'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/credits-debits'
     | '/login'
     | '/signup'
+    | '/sources'
     | '/spending'
     | '/subscriptions'
     | '/transactions'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   CreditsDebitsRoute: typeof CreditsDebitsRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
+  SourcesRoute: typeof SourcesRoute
   SpendingRoute: typeof SpendingRoute
   SubscriptionsRoute: typeof SubscriptionsRoute
   TransactionsRoute: typeof TransactionsRoute
@@ -162,6 +175,13 @@ declare module '@tanstack/react-router' {
       path: '/spending'
       fullPath: '/spending'
       preLoaderRoute: typeof SpendingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sources': {
+      id: '/sources'
+      path: '/sources'
+      fullPath: '/sources'
+      preLoaderRoute: typeof SourcesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -200,6 +220,7 @@ const rootRouteChildren: RootRouteChildren = {
   CreditsDebitsRoute: CreditsDebitsRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
+  SourcesRoute: SourcesRoute,
   SpendingRoute: SpendingRoute,
   SubscriptionsRoute: SubscriptionsRoute,
   TransactionsRoute: TransactionsRoute,

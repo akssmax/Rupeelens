@@ -244,7 +244,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     async (
       previews: ApplyMerchantCategorizationInput[],
     ): Promise<ApplyMerchantCategorizationResult> => {
-      const applicable = previews.filter((preview) => preview.matched.length > 0)
+      const applicable = previews.filter((preview) => preview.toUpdate.length > 0)
       if (applicable.length === 0) {
         return { updated: 0, merchants: [] }
       }
@@ -263,7 +263,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
       for (const preview of applicable) {
         const { updates, memoryItems: items } = buildCategorizationUpdates(
-          preview.matched,
+          preview.toUpdate,
           preview.categoryId,
         )
         for (const update of updates) {
@@ -293,7 +293,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const merchants = applicable.map((preview) => ({
           merchantQuery: preview.merchantQuery,
           categoryName: preview.categoryName,
-          count: preview.matched.length,
+          count: preview.toUpdate.length,
         }))
 
         return {

@@ -70,7 +70,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body suppressHydrationWarning>
         <AppProviders>
           {children}
-          <Toaster richColors position="top-right" />
+          <Toaster />
           {import.meta.env.DEV ? (
             <TanStackDevtools
               config={{
