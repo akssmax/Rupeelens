@@ -11,6 +11,12 @@ import {
   type StartJobOptions,
 } from "./categorize-job-context"
 
+function categorizeResultMessage(result: CategorizeJobResult): string {
+  const base = `Categorized ${result.updated} — rules ${result.rules}, learned ${result.memory}, AI ${result.llm}`
+  if (result.errors[0]) return `${base}. ${result.errors[0]}`
+  return base
+}
+
 export function CategorizeJobProvider({ children }: { children: ReactNode }) {
   const [job, setJob] = useState<CategorizeJobState>(idleCategorizeJobState)
 
@@ -21,6 +27,8 @@ export function CategorizeJobProvider({ children }: { children: ReactNode }) {
   const startJob = useCallback(
     async (transactions: Transaction[], options?: StartJobOptions) => {
       if (transactions.length === 0) return null
+
+      const toastId = options?.toastId
 
       setJob({
         active: true,
@@ -53,6 +61,7 @@ export function CategorizeJobProvider({ children }: { children: ReactNode }) {
         setJob((prev) => ({
           ...prev,
           active: false,
+          dismissed: true,
           progress: {
             phase: "done",
             done: prev.transactionCount,
@@ -62,23 +71,27 @@ export function CategorizeJobProvider({ children }: { children: ReactNode }) {
           result,
         }))
 
+        const categorizeMsg = categorizeResultMessage(result)
+        const message = options?.importSummary
+          ? `${options.importSummary}. ${categorizeMsg}`
+          : categorizeMsg
+
         if (result.errors.length) {
-          toast.warning(
-            `Categorized ${result.updated} (rules ${result.rules}, learned ${result.memory}, AI ${result.llm}). ${result.errors[0]}`,
-          )
-        } else if (result.updated > 0) {
-          toast.success(
-            `Categorized ${result.updated} — rules ${result.rules}, learned ${result.memory}, AI ${result.llm}`,
-          )
+          toast.warning(message, toastId ? { id: toastId } : undefined)
+        } else if (result.updated > 0 || options?.importSummary) {
+          toast.success(message, toastId ? { id: toastId } : undefined)
+        } else if (toastId) {
+          toast.dismiss(toastId)
         }
 
         return result
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
-        toast.error(message)
+        toast.error(message, toastId ? { id: toastId } : undefined)
         setJob((prev) => ({
           ...prev,
           active: false,
+          dismissed: true,
           result: {
             updated: 0,
             rules: 0,

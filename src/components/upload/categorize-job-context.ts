@@ -22,6 +22,10 @@ export type CategorizeJobState = {
 export type StartJobOptions = {
   force?: boolean
   label?: string
+  /** Stable Sonner id so chained actions share one toast */
+  toastId?: string
+  /** Shown before categorize result when toastId is set (e.g. import summary) */
+  importSummary?: string
 }
 
 export type CategorizeJobContextValue = {

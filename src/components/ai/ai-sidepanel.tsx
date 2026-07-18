@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from "react"
+import { Fragment, useCallback, useEffect, useRef, useState } from "react"
 import {
   CopyIcon,
   RefreshCcwIcon,
@@ -108,6 +108,7 @@ export function AiSidepanel({
     {},
   )
   const [busy, setBusy] = useState(false)
+  const confirmingRef = useRef(false)
   const [suggestions, setSuggestions] = useState(() =>
     pickRandomSuggestions(4),
   )
@@ -241,7 +242,10 @@ export function AiSidepanel({
 
   const handleConfirmCategorization = useCallback(
     async (messageId: string, previews: CategorizationPreview[]) => {
+      if (confirmingRef.current || busy) return
+      confirmingRef.current = true
       setBusy(true)
+      const toastId = "ai-categorize"
       try {
         const result = await applyMerchantCategorizations(previews)
         setMessages((prev) =>
@@ -269,18 +273,19 @@ export function AiSidepanel({
             : "No transactions were updated."
 
         if (result.updated > 0) {
-          toast.success(summary)
+          toast.success(summary, { id: toastId })
         } else {
-          toast.message(summary)
+          toast.message(summary, { id: toastId })
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
-        toast.error(msg)
+        toast.error(msg, { id: toastId })
       } finally {
+        confirmingRef.current = false
         setBusy(false)
       }
     },
-    [applyMerchantCategorizations],
+    [applyMerchantCategorizations, busy],
   )
 
   const handleCancelCategorization = useCallback((messageId: string) => {
@@ -297,7 +302,7 @@ export function AiSidepanel({
           : message,
       ),
     )
-    toast.message("Category update cancelled")
+    toast.message("Category update cancelled", { id: "ai-categorize" })
   }, [])
 
   const handleSubmit = (message: PromptInputMessage) => {

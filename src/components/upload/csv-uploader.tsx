@@ -203,21 +203,26 @@ export function CsvUploader({
             : undefined,
       })
 
-      toast.success(
-        `Imported ${result.transactions.length} transactions` +
-          (result.skippedDuplicates
-            ? ` (${result.skippedDuplicates} duplicates skipped)`
-            : ""),
-      )
+      const importSummary =
+        `Imported ${result.transactions.length} transaction${result.transactions.length === 1 ? "" : "s"}` +
+        (result.skippedDuplicates
+          ? ` (${result.skippedDuplicates} duplicates skipped)`
+          : "")
 
       emitFinanceRefresh()
       onComplete?.()
       void navigate({ to: "/" })
 
       if (result.transactions.length > 0) {
+        const toastId = "statement-import"
+        toast.loading(`${importSummary}. Categorizing…`, { id: toastId })
         void startJob(result.transactions, {
           label: `Categorizing ${filename || "statement"}`,
+          toastId,
+          importSummary,
         })
+      } else {
+        toast.success(importSummary, { id: "statement-import" })
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))

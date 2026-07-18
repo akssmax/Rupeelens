@@ -35,6 +35,7 @@ function syncLocalDataInBackground() {
       if (synced.transactions > 0) {
         toast.success(
           `Synced ${synced.transactions} local transactions to your account`,
+          { id: "auth" },
         )
       }
     })
@@ -76,7 +77,7 @@ export function LoginForm({
 
       await ensureAuthSessionReady()
       emitFinanceRefresh()
-      toast.success("Signed in")
+      toast.success("Signed in", { id: "auth" })
       void navigate({ to: "/" })
       syncLocalDataInBackground()
     } catch (e) {
