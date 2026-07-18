@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react"
 import { createFileRoute } from "@tanstack/react-router"
+import { getISOWeek, getISOWeekYear, parseISO } from "date-fns"
 import { Loader2, Sparkles } from "lucide-react"
 import { EmptyState } from "@/components/empty-state"
 import { TransactionsPageSkeleton } from "@/components/page-skeletons"
@@ -9,11 +10,25 @@ import { useCategorizeJob } from "@/components/upload/categorize-job-context"
 import { Button } from "@/components/ui/button"
 import { useFinanceData } from "@/hooks/use-finance-data"
 import { filterByMonth } from "@/lib/analytics"
+import { CATEGORY_MAP } from "@/lib/categories"
+import { formatDisplayDate } from "@/lib/format"
 import type { CategoryId } from "@/lib/types"
 
 type TransactionsSearch = {
   merchant?: string
   category?: CategoryId
+  date?: string
+  week?: string
+}
+
+function filterByWeek(txs: ReturnType<typeof filterByMonth>, weekKey: string) {
+  return txs.filter((t) => {
+    const d = parseISO(t.date)
+    const week = getISOWeek(d)
+    const year = getISOWeekYear(d)
+    const key = `${year}-W${String(week).padStart(2, "0")}`
+    return key === weekKey
+  })
 }
 
 export const Route = createFileRoute("/transactions")({
@@ -26,12 +41,20 @@ export const Route = createFileRoute("/transactions")({
       typeof search.category === "string" && search.category.trim()
         ? (search.category as CategoryId)
         : undefined,
+    date:
+      typeof search.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(search.date)
+        ? search.date
+        : undefined,
+    week:
+      typeof search.week === "string" && /^\d{4}-W\d{2}$/.test(search.week)
+        ? search.week
+        : undefined,
   }),
   component: TransactionsPage,
 })
 
 function TransactionsPage() {
-  const { merchant, category } = Route.useSearch()
+  const { merchant, category, date, week } = Route.useSearch()
   const {
     loading,
     transactions,
@@ -44,10 +67,12 @@ function TransactionsPage() {
   const { job, startJob } = useCategorizeJob()
   const running = job.active
 
-  const monthTransactions = useMemo(
-    () => (month ? filterByMonth(transactions, month) : transactions),
-    [transactions, month],
-  )
+  const monthTransactions = useMemo(() => {
+    let rows = month ? filterByMonth(transactions, month) : transactions
+    if (date) rows = rows.filter((t) => t.date === date)
+    if (week) rows = filterByWeek(rows, week)
+    return rows
+  }, [transactions, month, date, week])
 
   const initialFilters = useMemo(
     () =>
@@ -59,9 +84,14 @@ function TransactionsPage() {
 
   const filterHint = useMemo(() => {
     if (merchant) return `Showing ${merchant} transactions`
-    if (category) return `Filtered by category`
+    if (category) {
+      const name = CATEGORY_MAP[category]?.name ?? category
+      return `Showing ${name} transactions`
+    }
+    if (date) return `Showing ${formatDisplayDate(date)}`
+    if (week) return `Showing week ${week.split("-W")[1]} transactions`
     return null
-  }, [merchant, category])
+  }, [merchant, category, date, week])
 
   const uncategorizedCount = useMemo(
     () =>

@@ -1,19 +1,31 @@
-import { memo } from "react"
-import { Link, useRouterState } from "@tanstack/react-router"
+import { memo, useState } from "react"
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router"
 import {
   ArrowLeftRight,
   ChevronsUpDown,
   CloudUpload,
   Ghost,
   LayoutDashboard,
+  Loader2,
+  LogOut,
   PanelLeftClose,
   Receipt,
   Repeat,
+  Trash2,
   Wallet,
 } from "lucide-react"
 import { toast } from "sonner"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +47,11 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { authClient } from "@/lib/auth/client"
+import { useAuthSession } from "@/lib/auth/use-auth-session"
+import { clearAllData } from "@/lib/finance/storage"
+import { emitFinanceRefresh } from "@/lib/finance-events"
+import { migrateIndexedDbToCloud } from "@/lib/migrate-local-to-cloud"
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -51,9 +68,73 @@ const INCOGNITO_USER = {
 }
 
 export const AppSidebar = memo(function AppSidebar() {
+  const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const { isMobile, state, toggleSidebar } = useSidebar()
   const collapsed = state === "collapsed"
+  const [clearOpen, setClearOpen] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const { user, isSignedIn: signedIn } = useAuthSession()
+
+  const displayName = user?.name || user?.email || INCOGNITO_USER.label
+  const displaySubtitle = signedIn
+    ? "Synced to your account"
+    : INCOGNITO_USER.subtitle
+  const initials = signedIn
+    ? (displayName
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() ?? "")
+        .join("") || "U")
+    : null
+
+  const signOut = async () => {
+    try {
+      await authClient.signOut()
+      emitFinanceRefresh()
+      toast.success("Signed out")
+      void navigate({ to: "/" })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not sign out")
+    }
+  }
+
+  const syncLocalData = async () => {
+    setSyncing(true)
+    try {
+      const synced = await migrateIndexedDbToCloud()
+      emitFinanceRefresh()
+      if (synced.transactions === 0 && synced.statements === 0) {
+        toast.message("Nothing to sync", {
+          description: "No local browser data found to upload.",
+        })
+      } else {
+        toast.success(
+          `Synced ${synced.transactions} transactions to your account`,
+        )
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not sync local data")
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const clearStoredData = async () => {
+    setClearing(true)
+    try {
+      await clearAllData()
+      emitFinanceRefresh()
+      setClearOpen(false)
+      toast.success("Stored data cleared")
+      void navigate({ to: "/" })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not clear data")
+    } finally {
+      setClearing(false)
+    }
+  }
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -129,15 +210,17 @@ export const AppSidebar = memo(function AppSidebar() {
                 >
                   <Avatar size="sm" className="rounded-lg">
                     <AvatarFallback className="bg-muted text-muted-foreground rounded-lg">
-                      <Ghost className="size-4" />
+                      {signedIn ? (
+                        initials
+                      ) : (
+                        <Ghost className="size-4" />
+                      )}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">
-                      {INCOGNITO_USER.label}
-                    </span>
+                    <span className="truncate font-medium">{displayName}</span>
                     <span className="text-muted-foreground truncate text-xs">
-                      {INCOGNITO_USER.subtitle}
+                      {displaySubtitle}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto size-4" />
@@ -153,33 +236,58 @@ export const AppSidebar = memo(function AppSidebar() {
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                     <Avatar size="sm" className="rounded-lg">
                       <AvatarFallback className="bg-muted text-muted-foreground rounded-lg">
-                        <Ghost className="size-4" />
+                        {signedIn ? initials : <Ghost className="size-4" />}
                       </AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-medium">
-                        {INCOGNITO_USER.label}
-                      </span>
+                      <span className="truncate font-medium">{displayName}</span>
                       <span className="text-muted-foreground truncate text-xs">
-                        {INCOGNITO_USER.subtitle}
+                        {displaySubtitle}
                       </span>
                     </div>
                   </div>
                 </DropdownMenuLabel>
                 <p className="text-muted-foreground px-2 pb-1 text-xs leading-relaxed">
-                  {INCOGNITO_USER.hint}
+                  {signedIn
+                    ? "Your data is stored in your RupeeLens account. Clearing local data only affects this browser."
+                    : INCOGNITO_USER.hint}
                 </p>
                 <DropdownMenuSeparator />
+                {signedIn ? (
+                  <>
+                    <DropdownMenuItem
+                      disabled={syncing}
+                      onSelect={() => void syncLocalData()}
+                    >
+                      {syncing ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <CloudUpload className="size-4" />
+                      )}
+                      Sync local data
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void signOut()}>
+                      <LogOut className="size-4" />
+                      Log out
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <DropdownMenuItem asChild>
+                    <Link to="/signup">
+                      <CloudUpload className="size-4" />
+                      Sign up to save & sync
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
-                  onSelect={() => {
-                    toast.message("Sign up coming soon", {
-                      description:
-                        "You'll be able to sync statements across devices.",
-                    })
+                  variant="destructive"
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    setClearOpen(true)
                   }}
                 >
-                  <CloudUpload className="size-4" />
-                  Sign up to save & sync
+                  <Trash2 className="size-4" />
+                  Clear stored data
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <div className="flex items-center justify-between px-2 py-1.5">
@@ -191,6 +299,40 @@ export const AppSidebar = memo(function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+        <DialogContent showCloseButton={!clearing}>
+          <DialogHeader>
+            <DialogTitle>Clear stored data?</DialogTitle>
+            <DialogDescription>
+              This removes all imported CSV transactions, categories you learned,
+              and merchant mappings from this browser. You cannot undo this.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setClearOpen(false)}
+              disabled={clearing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void clearStoredData()}
+              disabled={clearing}
+            >
+              {clearing ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Clearing…
+                </>
+              ) : (
+                "Clear data"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <SidebarRail />
     </Sidebar>
   )

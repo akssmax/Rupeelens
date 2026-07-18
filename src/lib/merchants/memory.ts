@@ -1,4 +1,4 @@
-import { putMerchantMemoryBatch } from "../db"
+import { putMerchantMemoryBatch } from "../finance/storage"
 import type { CategoryId, MerchantMemory } from "../types"
 import { merchantKeyFromDescription } from "./keys"
 

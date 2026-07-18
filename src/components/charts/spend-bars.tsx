@@ -1,4 +1,5 @@
 import { memo } from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
   Bar,
   BarChart,
@@ -8,21 +9,34 @@ import {
   YAxis,
 } from "recharts"
 import { ClientChart } from "@/components/charts/client-chart"
-import { formatINR } from "@/lib/format"
+import { AmountChartTooltip } from "@/components/charts/chart-tooltip"
+import type { SpendChartDatum } from "@/lib/chart-types"
 
 export const SpendBars = memo(function SpendBars({
   data,
   xKey = "label",
 }: {
-  data: Array<{ label: string; amount: number }>
+  data: SpendChartDatum[]
   xKey?: string
 }) {
+  const navigate = useNavigate()
+
   if (data.length === 0) {
     return (
       <p className="text-muted-foreground py-10 text-center text-sm">
         No spend data
       </p>
     )
+  }
+
+  const openSpend = (entry: SpendChartDatum) => {
+    if (entry.date) {
+      void navigate({ to: "/transactions", search: { date: entry.date } })
+      return
+    }
+    if (entry.weekKey) {
+      void navigate({ to: "/transactions", search: { week: entry.weekKey } })
+    }
   }
 
   return (
@@ -49,14 +63,21 @@ export const SpendBars = memo(function SpendBars({
           width={48}
         />
         <Tooltip
-          formatter={(value) => formatINR(Number(value ?? 0))}
-          contentStyle={{
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--background)",
+          content={
+            <AmountChartTooltip hint="Click to view transactions for this period" />
+          }
+        />
+        <Bar
+          dataKey="amount"
+          fill="#1f6f5b"
+          radius={[4, 4, 0, 0]}
+          cursor="pointer"
+          className="transition-opacity hover:opacity-80"
+          onClick={(bar) => {
+            const entry = bar.payload as SpendChartDatum | undefined
+            if (entry) openSpend(entry)
           }}
         />
-        <Bar dataKey="amount" fill="#1f6f5b" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ClientChart>
   )

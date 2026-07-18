@@ -3,8 +3,9 @@ import { AiFab, AiSidepanel } from "@/components/ai/ai-sidepanel"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { useShellChrome } from "@/components/layout/shell-chrome"
-import { UploadModal } from "@/components/upload/upload-modal"
 import { CategorizeProgressPopover } from "@/components/upload/categorize-progress-popover"
+import { UploadModal } from "@/components/upload/upload-modal"
+import { FinanceProvider } from "@/hooks/use-finance-data"
 import {
   SidebarInset,
   SidebarProvider,
@@ -13,9 +14,11 @@ import {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <AiProvider>
-      <AppShellChrome>{children}</AppShellChrome>
-    </AiProvider>
+    <FinanceProvider>
+      <AiProvider>
+        <AppShellChrome>{children}</AppShellChrome>
+      </AiProvider>
+    </FinanceProvider>
   )
 }
 

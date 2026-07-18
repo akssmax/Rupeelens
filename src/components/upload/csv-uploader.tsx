@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { motion } from "framer-motion"
-import { FileSpreadsheet, Loader2, Upload } from "lucide-react"
+import { FileSpreadsheet, Loader2 } from "lucide-react"
 import Papa from "papaparse"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -23,12 +23,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  readStatementAsCsvText,
+  STATEMENT_FILE_ACCEPT,
+  statementKindLabel,
+  type StatementFileKind,
+} from "@/lib/statement-files"
+import {
   detectBankFromFile,
   listCsvHeaders,
   parseBankCsv,
 } from "@/lib/banks"
-import { emitFinanceRefresh } from "@/lib/finance-events"
 import { bankLabel, formatDisplayDate, formatINR } from "@/lib/format"
+import { emitFinanceRefresh } from "@/lib/finance-events"
 import { importCsvFile } from "@/lib/import"
 import type { BankId, ColumnMapping, ParseResult } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -74,8 +80,10 @@ export function CsvUploader({
   const [mapping, setMapping] = useState<Partial<ColumnMapping>>({})
   const [showMapper, setShowMapper] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [loadingFile, setLoadingFile] = useState(false)
+  const [sourceKind, setSourceKind] = useState<StatementFileKind | null>(null)
 
-  const busy = importing
+  const busy = importing || loadingFile
   const canImport = Boolean(preview && preview.rows.length > 0) && !busy
 
   const applyParse = useCallback(
@@ -95,20 +103,46 @@ export function CsvUploader({
 
   const loadFile = useCallback(
     async (file: File) => {
-      const csvText = await file.text()
-      setFilename(file.name)
-      setText(csvText)
-      const detected = detectBankFromFile(csvText, file.name)
-      setBank(detected)
-      const parsed = Papa.parse<string[]>(csvText, {
-        header: false,
-        skipEmptyLines: "greedy",
-      })
-      const matrix = (parsed.data as string[][]).map((row) =>
-        row.map((c) => (c == null ? "" : String(c))),
-      )
-      setHeaders(listCsvHeaders(matrix))
-      applyParse(csvText, file.name, detected)
+      setLoadingFile(true)
+      try {
+        const { text: csvText, kind } = await readStatementAsCsvText(file)
+        setFilename(file.name)
+        setText(csvText)
+        setSourceKind(kind)
+        const detected = detectBankFromFile(csvText, file.name)
+        setBank(detected)
+        const parsed = Papa.parse<string[]>(csvText, {
+          header: false,
+          skipEmptyLines: "greedy",
+        })
+        const matrix = (parsed.data as string[][]).map((row) =>
+          row.map((c) => (c == null ? "" : String(c))),
+        )
+        setHeaders(listCsvHeaders(matrix))
+        const result = applyParse(csvText, file.name, detected)
+        if (kind !== "csv") {
+          toast.success(
+            `${statementKindLabel(kind)} converted — review the preview before importing`,
+          )
+        }
+        if (result.rows.length === 0 && kind === "pdf") {
+          toast.message("PDF parsed with limited structure", {
+            description:
+              "Try Map columns, or export CSV/Excel from your bank for best results.",
+          })
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not read file")
+        setFilename("")
+        setText("")
+        setPreview(null)
+        setHeaders([])
+        setMapping({})
+        setShowMapper(false)
+        setSourceKind(null)
+      } finally {
+        setLoadingFile(false)
+      }
     },
     [applyParse],
   )
@@ -121,6 +155,7 @@ export function CsvUploader({
     setHeaders([])
     setMapping({})
     setShowMapper(false)
+    setSourceKind(null)
   }
 
   const previewRows = useMemo(
@@ -210,22 +245,27 @@ export function CsvUploader({
           if (file) void loadFile(file)
         }}
       >
-        <FileSpreadsheet className="text-muted-foreground mb-3 size-9" />
+        {loadingFile ? (
+          <Loader2 className="text-muted-foreground mb-3 size-9 animate-spin" />
+        ) : (
+          <FileSpreadsheet className="text-muted-foreground mb-3 size-9" />
+        )}
         <p className="font-heading text-sm font-semibold">
-          Drop your bank CSV here
+          Drop your bank statement here
         </p>
         <p className="text-muted-foreground mt-1 text-center text-xs">
-          Axis, HDFC, ICICI, SBI and other Indian netbanking exports
+          CSV, Excel (.xls/.xlsx), or PDF from Axis, HDFC, ICICI, SBI and more
         </p>
         <label className="mt-4">
           <input
             type="file"
-            accept=".csv,text/csv"
+            accept={STATEMENT_FILE_ACCEPT}
             className="hidden"
             disabled={busy}
             onChange={(e) => {
               const file = e.target.files?.[0]
               if (file) void loadFile(file)
+              e.target.value = ""
             }}
           />
           <Button asChild variant="outline" size="sm" disabled={busy}>
@@ -235,6 +275,9 @@ export function CsvUploader({
         {filename ? (
           <p className="text-muted-foreground mt-3 max-w-full truncate px-2 text-xs">
             {filename}
+            {sourceKind && sourceKind !== "csv"
+              ? ` · ${statementKindLabel(sourceKind)}`
+              : ""}
           </p>
         ) : null}
       </div>
@@ -388,7 +431,7 @@ export function CsvUploader({
           <p className="font-medium text-foreground">How to export</p>
           <ol className="list-decimal space-y-1 pl-4">
             <li>Open Axis (or your bank) netbanking / app</li>
-            <li>Download account statement as CSV</li>
+            <li>Download your statement as CSV, Excel, or PDF</li>
             <li>Drop the file above — we auto-detect the bank</li>
           </ol>
         </div>

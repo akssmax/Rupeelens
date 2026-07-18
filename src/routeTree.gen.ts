@@ -13,6 +13,8 @@ import { Route as UploadRouteImport } from './routes/upload'
 import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as SubscriptionsRouteImport } from './routes/subscriptions'
 import { Route as SpendingRouteImport } from './routes/spending'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as CreditsDebitsRouteImport } from './routes/credits-debits'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -36,6 +38,16 @@ const SpendingRoute = SpendingRouteImport.update({
   path: '/spending',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CreditsDebitsRoute = CreditsDebitsRouteImport.update({
   id: '/credits-debits',
   path: '/credits-debits',
@@ -50,6 +62,8 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/credits-debits': typeof CreditsDebitsRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
   '/spending': typeof SpendingRoute
   '/subscriptions': typeof SubscriptionsRoute
   '/transactions': typeof TransactionsRoute
@@ -58,6 +72,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/credits-debits': typeof CreditsDebitsRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
   '/spending': typeof SpendingRoute
   '/subscriptions': typeof SubscriptionsRoute
   '/transactions': typeof TransactionsRoute
@@ -67,6 +83,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/credits-debits': typeof CreditsDebitsRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
   '/spending': typeof SpendingRoute
   '/subscriptions': typeof SubscriptionsRoute
   '/transactions': typeof TransactionsRoute
@@ -77,6 +95,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/credits-debits'
+    | '/login'
+    | '/signup'
     | '/spending'
     | '/subscriptions'
     | '/transactions'
@@ -85,6 +105,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/credits-debits'
+    | '/login'
+    | '/signup'
     | '/spending'
     | '/subscriptions'
     | '/transactions'
@@ -93,6 +115,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/credits-debits'
+    | '/login'
+    | '/signup'
     | '/spending'
     | '/subscriptions'
     | '/transactions'
@@ -102,6 +126,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CreditsDebitsRoute: typeof CreditsDebitsRoute
+  LoginRoute: typeof LoginRoute
+  SignupRoute: typeof SignupRoute
   SpendingRoute: typeof SpendingRoute
   SubscriptionsRoute: typeof SubscriptionsRoute
   TransactionsRoute: typeof TransactionsRoute
@@ -138,6 +164,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SpendingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/credits-debits': {
       id: '/credits-debits'
       path: '/credits-debits'
@@ -158,6 +198,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CreditsDebitsRoute: CreditsDebitsRoute,
+  LoginRoute: LoginRoute,
+  SignupRoute: SignupRoute,
   SpendingRoute: SpendingRoute,
   SubscriptionsRoute: SubscriptionsRoute,
   TransactionsRoute: TransactionsRoute,

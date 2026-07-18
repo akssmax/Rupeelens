@@ -16,12 +16,16 @@ import {
   monthlySummary,
   weeklySpends,
 } from "@/lib/analytics"
+import { authClient } from "@/lib/auth/client"
+import { useAuthSession } from "@/lib/auth/use-auth-session"
 import {
   getAllStatements,
   getAllTransactions,
   getCategories,
+  getFinanceStorageMode,
+  setFinanceStorageMode,
   updateTransaction,
-} from "@/lib/db"
+} from "@/lib/finance/storage"
 import { onFinanceRefresh } from "@/lib/finance-events"
 import { rememberMerchantMapping } from "@/lib/merchants/memory"
 import type { Category, CategoryId, Statement, Transaction } from "@/lib/types"
@@ -48,11 +52,14 @@ type FinanceContextValue = {
     categoryId: CategoryId,
     merchant?: string,
   ) => Promise<void>
+  isSignedIn: boolean
+  isCloudSynced: boolean
 }
 
 const FinanceContext = createContext<FinanceContextValue | null>(null)
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
+  const { isSignedIn, isPending } = useAuthSession()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [statements, setStatements] = useState<Statement[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -88,15 +95,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       })
     } catch (e) {
       if (id !== requestId.current) return
-      setError(e instanceof Error ? e.message : String(e))
+      const message = e instanceof Error ? e.message : String(e)
+      if (
+        getFinanceStorageMode() === "cloud" &&
+        (message === "Unauthorized" ||
+          message.includes("Session expired") ||
+          message.includes("sign in again"))
+      ) {
+        setFinanceStorageMode("local")
+        try {
+          await authClient.signOut()
+        } catch {
+          /* ignore */
+        }
+        setError("Session expired — signed out. Import again while incognito or sign in.")
+      } else {
+        setError(message)
+      }
     } finally {
       if (id === requestId.current) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
+    if (isPending) return
+    setFinanceStorageMode(isSignedIn ? "cloud" : "local")
+    setLoading(true)
     void refresh()
-  }, [refresh])
+  }, [isSignedIn, isPending, refresh])
 
   useEffect(() => onFinanceRefresh(() => void refresh()), [refresh])
 
@@ -174,6 +200,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       subscriptions,
       refresh,
       changeCategory,
+      isSignedIn,
+      isCloudSynced: isSignedIn,
     }),
     [
       transactions,
@@ -192,6 +220,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       subscriptions,
       refresh,
       changeCategory,
+      isSignedIn,
     ],
   )
 

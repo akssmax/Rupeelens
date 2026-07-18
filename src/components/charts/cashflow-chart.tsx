@@ -1,4 +1,5 @@
 import { memo } from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
   Bar,
   BarChart,
@@ -9,7 +10,7 @@ import {
   YAxis,
 } from "recharts"
 import { ClientChart } from "@/components/charts/client-chart"
-import { formatINR } from "@/lib/format"
+import { CashflowChartTooltip } from "@/components/charts/chart-tooltip"
 
 const INCOME = "#2a9d8f"
 const EXPENSE = "#e76f51"
@@ -19,6 +20,8 @@ export const CashflowChart = memo(function CashflowChart({
 }: {
   data: Array<{ label: string; income: number; expense: number }>
 }) {
+  const navigate = useNavigate()
+
   if (data.length === 0) {
     return (
       <p className="text-muted-foreground py-10 text-center text-sm">
@@ -54,17 +57,7 @@ export const CashflowChart = memo(function CashflowChart({
             }).format(Number(v))
           }
         />
-        <Tooltip
-          formatter={(value, name) => [
-            formatINR(Number(value ?? 0)),
-            name === "income" ? "Income" : "Expense",
-          ]}
-          contentStyle={{
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--background)",
-          }}
-        />
+        <Tooltip content={<CashflowChartTooltip />} />
         <Legend
           verticalAlign="bottom"
           height={28}
@@ -76,6 +69,11 @@ export const CashflowChart = memo(function CashflowChart({
           fill={INCOME}
           radius={[4, 4, 0, 0]}
           maxBarSize={36}
+          cursor="pointer"
+          className="transition-opacity hover:opacity-80"
+          onClick={() => {
+            void navigate({ to: "/credits-debits", search: { tab: "credits" } })
+          }}
         />
         <Bar
           dataKey="expense"
@@ -83,6 +81,11 @@ export const CashflowChart = memo(function CashflowChart({
           fill={EXPENSE}
           radius={[4, 4, 0, 0]}
           maxBarSize={36}
+          cursor="pointer"
+          className="transition-opacity hover:opacity-80"
+          onClick={() => {
+            void navigate({ to: "/credits-debits", search: { tab: "debits" } })
+          }}
         />
       </BarChart>
     </ClientChart>

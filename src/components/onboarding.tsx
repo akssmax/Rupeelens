@@ -13,8 +13,8 @@ import { Card, CardContent } from "@/components/ui/card"
 const steps = [
   {
     icon: FileSpreadsheet,
-    title: "Export CSV from your bank",
-    body: "Axis, HDFC, ICICI, SBI and more — download the monthly statement CSV from netbanking or the app.",
+    title: "Export from your bank",
+    body: "Axis, HDFC, ICICI, SBI and more — download the monthly statement as CSV, Excel, or PDF from netbanking or the app.",
   },
   {
     icon: Upload,
@@ -46,8 +46,8 @@ export function Onboarding() {
           Welcome to RupeeLens
         </h1>
         <p className="text-muted-foreground mx-auto max-w-lg text-sm leading-relaxed">
-          Your personal finance view from bank CSVs — private by default, with
-          AI that understands Indian UPI narrations.
+          Your personal finance view from bank statements — CSV, Excel, or PDF —
+          private by default, with AI that understands Indian UPI narrations.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
           <Button size="lg" onClick={openUpload}>

@@ -65,6 +65,7 @@ function DashboardPage() {
         name: c.name,
         amount: c.amount,
         color: c.color,
+        categoryId: c.categoryId,
       })) ?? [],
     [summary],
   )
@@ -164,13 +165,22 @@ function DashboardPage() {
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {summary.byCategory.slice(0, 8).map((c) => (
-                          <Badge key={c.categoryId} variant="secondary">
-                            <span
-                              className="mr-1.5 inline-block size-2 rounded-full"
-                              style={{ background: c.color }}
-                            />
-                            {c.name} · {formatINR(c.amount, true)}
-                          </Badge>
+                          <Link
+                            key={c.categoryId}
+                            to="/transactions"
+                            search={{ category: c.categoryId }}
+                          >
+                            <Badge
+                              variant="secondary"
+                              className="hover:bg-secondary/80 cursor-pointer transition-colors"
+                            >
+                              <span
+                                className="mr-1.5 inline-block size-2 rounded-full"
+                                style={{ background: c.color }}
+                              />
+                              {c.name} · {formatINR(c.amount, true)}
+                            </Badge>
+                          </Link>
                         ))}
                       </div>
                     </CardContent>

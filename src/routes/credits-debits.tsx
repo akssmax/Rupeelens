@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { EmptyState } from "@/components/empty-state"
 import { CreditsDebitsPageSkeleton } from "@/components/page-skeletons"
@@ -5,16 +6,28 @@ import { MonthSelect } from "@/components/month-select"
 import { TransactionTable } from "@/components/transactions/transaction-table"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useCallback, useState } from "react"
 import type { CategoryId } from "@/lib/types"
 import { useFinanceData } from "@/hooks/use-finance-data"
 import { formatINR } from "@/lib/format"
 
+type CreditsDebitsSearch = {
+  tab?: "credits" | "debits"
+}
+
 export const Route = createFileRoute("/credits-debits")({
+  validateSearch: (search: Record<string, unknown>): CreditsDebitsSearch => ({
+    tab:
+      search.tab === "credits"
+        ? "credits"
+        : search.tab === "debits"
+          ? "debits"
+          : undefined,
+  }),
   component: CreditsDebitsPage,
 })
 
 function CreditsDebitsPage() {
+  const { tab: searchTab } = Route.useSearch()
   const {
     loading,
     transactions,
@@ -25,7 +38,11 @@ function CreditsDebitsPage() {
     flow,
     changeCategory,
   } = useFinanceData()
-  const [tab, setTab] = useState<"debits" | "credits">("debits")
+  const [tab, setTab] = useState<"debits" | "credits">(searchTab ?? "debits")
+
+  useEffect(() => {
+    if (searchTab) setTab(searchTab)
+  }, [searchTab])
 
   const handleCategoryChange = useCallback(
     (id: string, categoryId: CategoryId) => {

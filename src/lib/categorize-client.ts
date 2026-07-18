@@ -1,7 +1,7 @@
 import {
   getMerchantMemoryIndex,
   updateTransactionsBatch,
-} from "./db"
+} from "./finance/storage"
 import {
   applyMemoryCategorization,
   applyRuleCategorization,

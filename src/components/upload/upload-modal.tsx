@@ -26,8 +26,9 @@ export function UploadModal() {
               <DialogHeader className="shrink-0 space-y-1 border-b px-6 py-4 text-left">
                 <DialogTitle>Upload statement</DialogTitle>
                 <DialogDescription>
-                  Import a monthly CSV from your bank. Data stays in your
-                  browser; only narrations go to Mistral for categorization.
+                  Import a monthly statement (CSV, Excel, or PDF) from your bank.
+                  Data stays in your browser; only narrations go to Mistral for
+                  categorization.
                 </DialogDescription>
               </DialogHeader>
 

@@ -76,12 +76,16 @@ export function ErrorFallback({
       <div className="bg-destructive/10 text-destructive flex size-12 items-center justify-center rounded-full">
         <AlertTriangle className="size-5" />
       </div>
-      <div className="space-y-1">
+      <div className="space-y-2">
         <h1 className="font-heading text-xl font-semibold">{title}</h1>
         <p className="text-muted-foreground max-w-md text-sm">
-          {error?.message ||
-            "An unexpected error occurred. You can try again or reload the page."}
+          An unexpected error occurred. You can try again or reload the page.
         </p>
+        {error?.message ? (
+          <pre className="bg-muted text-foreground mx-auto max-w-lg overflow-x-auto rounded-lg border px-4 py-3 text-left font-mono text-xs leading-relaxed whitespace-pre-wrap">
+            {error.message}
+          </pre>
+        ) : null}
       </div>
       <div className="flex flex-wrap justify-center gap-2">
         {onRetry ? (

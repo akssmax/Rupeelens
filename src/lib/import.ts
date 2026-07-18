@@ -3,7 +3,7 @@ import {
   filterNewTransactions,
   getMerchantMemoryIndex,
   saveImport,
-} from "./db"
+} from "./finance/storage"
 import { findCatalogMerchant } from "./merchants/catalog"
 import { extractMerchantName } from "./merchants/extract"
 import { lookupMerchantMemory } from "./merchants/memory"

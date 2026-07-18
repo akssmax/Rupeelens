@@ -1,4 +1,5 @@
 import { memo } from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
   Bar,
   BarChart,
@@ -9,13 +10,16 @@ import {
   YAxis,
 } from "recharts"
 import { ClientChart } from "@/components/charts/client-chart"
-import { formatINR } from "@/lib/format"
+import { CategoryChartTooltip } from "@/components/charts/chart-tooltip"
+import type { CategoryChartDatum } from "@/lib/chart-types"
 
 export const CategoryBars = memo(function CategoryBars({
   data,
 }: {
-  data: Array<{ name: string; amount: number; color: string }>
+  data: CategoryChartDatum[]
 }) {
+  const navigate = useNavigate()
+
   if (data.length === 0) {
     return (
       <p className="text-muted-foreground py-10 text-center text-sm">
@@ -25,6 +29,13 @@ export const CategoryBars = memo(function CategoryBars({
   }
 
   const chartData = data.slice(0, 8)
+
+  const openCategory = (entry: CategoryChartDatum) => {
+    void navigate({
+      to: "/transactions",
+      search: { category: entry.categoryId },
+    })
+  }
 
   return (
     <ClientChart fill minHeight={224}>
@@ -54,17 +65,23 @@ export const CategoryBars = memo(function CategoryBars({
           axisLine={false}
           tickLine={false}
         />
-        <Tooltip
-          formatter={(value) => formatINR(Number(value ?? 0))}
-          contentStyle={{
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--background)",
+        <Tooltip content={<CategoryChartTooltip />} />
+        <Bar
+          dataKey="amount"
+          radius={[0, 4, 4, 0]}
+          maxBarSize={22}
+          cursor="pointer"
+          onClick={(bar) => {
+            const entry = bar.payload as CategoryChartDatum | undefined
+            if (entry?.categoryId) openCategory(entry)
           }}
-        />
-        <Bar dataKey="amount" radius={[0, 4, 4, 0]} maxBarSize={22}>
+        >
           {chartData.map((entry) => (
-            <Cell key={entry.name} fill={entry.color} />
+            <Cell
+              key={entry.name}
+              fill={entry.color}
+              className="transition-opacity hover:opacity-80"
+            />
           ))}
         </Bar>
       </BarChart>
