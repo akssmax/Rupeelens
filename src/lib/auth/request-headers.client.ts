@@ -1,3 +1,5 @@
+import "@tanstack/react-start/client-only"
+
 import { authClient } from "./client"
 
 /** Session token for cloud server functions (Neon Auth cookies are on neonauth.*, not our app domain). */

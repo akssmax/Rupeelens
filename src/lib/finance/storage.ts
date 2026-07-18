@@ -1,5 +1,5 @@
 import { SEED_CATEGORIES } from "../categories"
-import * as cloud from "../db-cloud"
+import { createClientOnlyFn } from "@tanstack/react-start"
 import * as local from "../db"
 import type {
   AppSettings,
@@ -14,6 +14,8 @@ export type FinanceStorageMode = "local" | "cloud"
 
 let mode: FinanceStorageMode = "local"
 
+const loadCloud = createClientOnlyFn(async () => import("../db-cloud.client"))
+
 export function setFinanceStorageMode(next: FinanceStorageMode) {
   mode = next
 }
@@ -24,13 +26,13 @@ export function getFinanceStorageMode(): FinanceStorageMode {
 
 export async function getAllTransactions(): Promise<Transaction[]> {
   return mode === "cloud"
-    ? cloud.getAllTransactions()
+    ? (await loadCloud()).getAllTransactions()
     : local.getAllTransactions()
 }
 
 export async function getAllStatements(): Promise<Statement[]> {
   return mode === "cloud"
-    ? cloud.getAllStatements()
+    ? (await loadCloud()).getAllStatements()
     : local.getAllStatements()
 }
 
@@ -40,12 +42,12 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getSettings(): Promise<AppSettings> {
-  return mode === "cloud" ? cloud.getSettings() : local.getSettings()
+  return mode === "cloud" ? (await loadCloud()).getSettings() : local.getSettings()
 }
 
 export async function getMerchantMemory(): Promise<MerchantMemory[]> {
   return mode === "cloud"
-    ? cloud.getMerchantMemory()
+    ? (await loadCloud()).getMerchantMemory()
     : local.getMerchantMemory()
 }
 
@@ -65,7 +67,7 @@ export async function saveImport(params: {
   statement: Statement
   transactions: Transaction[]
 }): Promise<void> {
-  if (mode === "cloud") return cloud.saveImport(params)
+  if (mode === "cloud") return (await loadCloud()).saveImport(params)
   return local.saveImport(params)
 }
 
@@ -73,14 +75,14 @@ export async function updateTransaction(
   id: string,
   patch: Partial<Transaction>,
 ): Promise<void> {
-  if (mode === "cloud") return cloud.updateTransaction(id, patch)
+  if (mode === "cloud") return (await loadCloud()).updateTransaction(id, patch)
   return local.updateTransaction(id, patch)
 }
 
 export async function updateTransactionsBatch(
   updates: Array<{ id: string; patch: Partial<Transaction> }>,
 ): Promise<void> {
-  if (mode === "cloud") return cloud.updateTransactionsBatch(updates)
+  if (mode === "cloud") return (await loadCloud()).updateTransactionsBatch(updates)
   return local.updateTransactionsBatch(updates)
 }
 
@@ -93,7 +95,7 @@ export async function putMerchantMemoryBatch(
     source?: MerchantMemory["source"]
   }>,
 ): Promise<void> {
-  if (mode === "cloud") return cloud.putMerchantMemoryBatch(entries)
+  if (mode === "cloud") return (await loadCloud()).putMerchantMemoryBatch(entries)
   return local.putMerchantMemoryBatch(entries)
 }
 
@@ -101,7 +103,7 @@ export async function filterNewTransactions(
   candidates: Transaction[],
 ): Promise<Transaction[]> {
   return mode === "cloud"
-    ? cloud.filterNewTransactions(candidates)
+    ? (await loadCloud()).filterNewTransactions(candidates)
     : local.filterNewTransactions(candidates)
 }
 

@@ -1,4 +1,4 @@
-import { getAuthRequestHeaders } from "@/lib/auth/request-headers.client"
+import { createClientOnlyFn } from "@tanstack/react-start"
 import {
   getAllStatements,
   getAllTransactions,
@@ -6,11 +6,11 @@ import {
 } from "@/lib/db"
 import { migrateLocalDataToCloud } from "@/server/migrate-local-data"
 
-export async function migrateIndexedDbToCloud(): Promise<{
-  statements: number
-  transactions: number
-  merchantMemory: number
-}> {
+export const migrateIndexedDbToCloud = createClientOnlyFn(async () => {
+  const { getAuthRequestHeaders } = await import(
+    "@/lib/auth/request-headers.client"
+  )
+
   const [statements, transactions, merchantMemory] = await Promise.all([
     getAllStatements(),
     getAllTransactions(),
@@ -36,4 +36,4 @@ export async function migrateIndexedDbToCloud(): Promise<{
     transactions: transactions.length,
     merchantMemory: merchantMemory.length,
   }
-}
+})

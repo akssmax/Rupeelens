@@ -1,3 +1,5 @@
+import "@tanstack/react-start/client-only"
+
 import { getAuthRequestHeaders } from "@/lib/auth/request-headers.client"
 import {
   fetchCloudFinanceData,
