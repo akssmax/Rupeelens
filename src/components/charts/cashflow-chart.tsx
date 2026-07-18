@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts"
 import { ClientChart } from "@/components/charts/client-chart"
-import { CashflowChartTooltip } from "@/components/charts/chart-tooltip"
+import { CashflowChartTooltip, CHART_TOOLTIP_CURSOR } from "@/components/charts/chart-tooltip"
 
 const INCOME = "#2a9d8f"
 const EXPENSE = "#e76f51"
@@ -57,7 +57,7 @@ export const CashflowChart = memo(function CashflowChart({
             }).format(Number(v))
           }
         />
-        <Tooltip content={<CashflowChartTooltip />} />
+        <Tooltip content={<CashflowChartTooltip />} cursor={CHART_TOOLTIP_CURSOR} />
         <Legend
           verticalAlign="bottom"
           height={28}

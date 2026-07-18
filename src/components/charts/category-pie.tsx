@@ -2,7 +2,7 @@ import { memo } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { Cell, Pie, PieChart, Tooltip } from "recharts"
 import { ClientChart } from "@/components/charts/client-chart"
-import { CategoryChartTooltip } from "@/components/charts/chart-tooltip"
+import { CategoryChartTooltip, CHART_TOOLTIP_CURSOR } from "@/components/charts/chart-tooltip"
 import type { CategoryChartDatum } from "@/lib/chart-types"
 
 export const CategoryPie = memo(function CategoryPie({
@@ -55,7 +55,7 @@ export const CategoryPie = memo(function CategoryPie({
             />
           ))}
         </Pie>
-        <Tooltip content={<CategoryChartTooltip />} />
+        <Tooltip content={<CategoryChartTooltip />} cursor={CHART_TOOLTIP_CURSOR} />
       </PieChart>
     </ClientChart>
   )

@@ -227,10 +227,16 @@ export function CsvUploader({
   }
 
   const body = (
-    <div className="space-y-5">
+    <div
+      className={cn(
+        "flex flex-col",
+        text ? "space-y-5" : "min-h-full gap-5",
+      )}
+    >
       <div
         className={cn(
-          "border-border/80 bg-background/70 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 transition-colors",
+          "border-border/80 bg-background/70 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 transition-colors",
+          text ? "py-10" : "min-h-48 flex-1 py-10",
           dragOver && "border-primary bg-primary/5",
         )}
         onDragOver={(e) => {
@@ -254,7 +260,7 @@ export function CsvUploader({
           Drop your bank statement here
         </p>
         <p className="text-muted-foreground mt-1 text-center text-xs">
-          CSV, Excel (.xls/.xlsx), or PDF from Axis, HDFC, ICICI, SBI and more
+          CSV, Excel (.xls/.xlsx), or PDF — most Indian bank statements
         </p>
         <label className="mt-4">
           <input
@@ -427,12 +433,12 @@ export function CsvUploader({
           ) : null}
         </div>
       ) : (
-        <div className="text-muted-foreground space-y-2 text-xs">
+        <div className="text-muted-foreground shrink-0 space-y-2 text-xs">
           <p className="font-medium text-foreground">How to export</p>
           <ol className="list-decimal space-y-1 pl-4">
-            <li>Open Axis (or your bank) netbanking / app</li>
-            <li>Download your statement as CSV, Excel, or PDF</li>
-            <li>Drop the file above — we auto-detect the bank</li>
+            <li>Open your bank app or netbanking</li>
+            <li>Download your monthly statement as CSV, Excel, or PDF</li>
+            <li>Drop it above — we parse and detect the format automatically</li>
           </ol>
         </div>
       )}

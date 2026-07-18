@@ -1,5 +1,11 @@
 import { formatINR } from "@/lib/format"
 
+/** Theme-aware hover band behind bar / column tooltips. */
+export const CHART_TOOLTIP_CURSOR = {
+  fill: "var(--muted)",
+  fillOpacity: 0.45,
+} as const
+
 export function chartTooltipStyle() {
   return {
     borderRadius: 8,

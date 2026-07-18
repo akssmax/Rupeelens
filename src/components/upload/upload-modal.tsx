@@ -32,7 +32,7 @@ export function UploadModal() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-4">
                 {body}
               </div>
 

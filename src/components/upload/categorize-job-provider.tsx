@@ -1,68 +1,21 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react"
+import { useCallback, useMemo, useState, type ReactNode } from "react"
 import { toast } from "sonner"
-import {
-  runCategorization,
-  type CategorizeProgress,
-} from "@/lib/categorize-client"
+import { runCategorization } from "@/lib/categorize-client"
 import { emitFinanceRefresh } from "@/lib/finance-events"
 import type { Transaction } from "@/lib/types"
-
-export type CategorizeJobResult = {
-  updated: number
-  rules: number
-  memory: number
-  llm: number
-  errors: string[]
-}
-
-type CategorizeJobState = {
-  active: boolean
-  dismissed: boolean
-  label: string
-  transactionCount: number
-  progress: CategorizeProgress | null
-  result: CategorizeJobResult | null
-}
-
-type StartJobOptions = {
-  force?: boolean
-  label?: string
-}
-
-type CategorizeJobContextValue = {
-  job: CategorizeJobState
-  startJob: (
-    transactions: Transaction[],
-    options?: StartJobOptions,
-  ) => Promise<CategorizeJobResult | null>
-  dismiss: () => void
-}
-
-const idleState: CategorizeJobState = {
-  active: false,
-  dismissed: false,
-  label: "",
-  transactionCount: 0,
-  progress: null,
-  result: null,
-}
-
-const CategorizeJobContext = createContext<CategorizeJobContextValue | null>(
-  null,
-)
+import {
+  CategorizeJobContext,
+  idleCategorizeJobState,
+  type CategorizeJobResult,
+  type CategorizeJobState,
+  type StartJobOptions,
+} from "./categorize-job-context"
 
 export function CategorizeJobProvider({ children }: { children: ReactNode }) {
-  const [job, setJob] = useState<CategorizeJobState>(idleState)
+  const [job, setJob] = useState<CategorizeJobState>(idleCategorizeJobState)
 
   const dismiss = useCallback(() => {
-    setJob(idleState)
+    setJob(idleCategorizeJobState)
   }, [])
 
   const startJob = useCallback(
@@ -132,7 +85,7 @@ export function CategorizeJobProvider({ children }: { children: ReactNode }) {
             memory: 0,
             llm: 0,
             errors: [message],
-          },
+          } satisfies CategorizeJobResult,
         }))
         return null
       }
@@ -150,12 +103,4 @@ export function CategorizeJobProvider({ children }: { children: ReactNode }) {
       {children}
     </CategorizeJobContext.Provider>
   )
-}
-
-export function useCategorizeJob() {
-  const ctx = useContext(CategorizeJobContext)
-  if (!ctx) {
-    throw new Error("useCategorizeJob must be used within CategorizeJobProvider")
-  }
-  return ctx
 }

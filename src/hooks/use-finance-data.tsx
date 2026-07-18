@@ -23,6 +23,7 @@ import {
   getCategories,
   createCategory as saveCategory,
   getFinanceStorageMode,
+  hasLocalTransactions,
   setFinanceStorageMode,
   updateTransaction,
 } from "@/lib/finance/storage"
@@ -38,6 +39,8 @@ type FinanceContextValue = {
   statements: Statement[]
   categories: Category[]
   loading: boolean
+  isAuthPending: boolean
+  hasLocalData: boolean | null
   error: string | null
   month: string
   setMonth: (month: string) => void
@@ -66,6 +69,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [statements, setStatements] = useState<Statement[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasLocalData, setHasLocalData] = useState<boolean | null>(null)
   const [month, setMonth] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
   const requestId = useRef(0)
@@ -140,6 +144,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    void hasLocalTransactions().then((hasData) => {
+      if (!cancelled) setHasLocalData(hasData)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     if (isPending) return
     setFinanceStorageMode(isSignedIn ? "cloud" : "local")
     setLoading(true)
@@ -147,6 +161,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [isSignedIn, isPending, refresh])
 
   useEffect(() => onFinanceRefresh(() => void refresh()), [refresh])
+
+  useEffect(() => {
+    if (transactions.length > 0) {
+      setHasLocalData(true)
+    }
+  }, [transactions.length])
 
   const months = useMemo(
     () => availableMonths(transactions),
@@ -229,6 +249,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       statements,
       categories,
       loading,
+      isAuthPending: isPending,
+      hasLocalData,
       error,
       month,
       setMonth,
@@ -251,6 +273,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       statements,
       categories,
       loading,
+      isPending,
+      hasLocalData,
       error,
       month,
       months,

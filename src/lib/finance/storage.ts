@@ -118,6 +118,10 @@ export async function filterNewTransactions(
     : local.filterNewTransactions(candidates)
 }
 
+export async function hasLocalTransactions(): Promise<boolean> {
+  return local.hasLocalTransactions()
+}
+
 /** Always clears local IndexedDB only — cloud data is untouched. */
 export async function clearAllData(): Promise<void> {
   return local.clearAllData()

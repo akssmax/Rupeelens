@@ -2,7 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react"
@@ -45,7 +45,7 @@ export function useShellChrome() {
 /** Hide app chrome (sidebar, AI FAB) while mounted — used by onboarding. */
 export function useMinimalShell(enabled = true) {
   const { setMinimal } = useShellChrome()
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!enabled) return
     setMinimal(true)
     return () => setMinimal(false)

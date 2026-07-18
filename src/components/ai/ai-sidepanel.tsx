@@ -33,7 +33,6 @@ import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
@@ -163,14 +162,12 @@ export function AiSidepanel({
         <SheetHeader className="border-b px-4 py-4 text-left">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <SheetTitle className="flex items-center gap-2">
-                <SparklesIcon className="size-4" />
+              <SheetTitle className="flex items-center gap-2.5">
+                <span className="bg-primary/15 text-primary flex size-8 shrink-0 items-center justify-center rounded-lg">
+                  <SparklesIcon className="size-4" />
+                </span>
                 RupeeLens AI
               </SheetTitle>
-              <SheetDescription>
-                Ask about spends, categories, and subscriptions from your
-                imported statements.
-              </SheetDescription>
             </div>
             <Button
               variant="ghost"

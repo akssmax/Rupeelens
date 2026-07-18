@@ -1,16 +1,23 @@
 import { useState } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { Loader2 } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { authClient } from "@/lib/auth/client"
 import {
   authErrorMessage,
@@ -19,6 +26,7 @@ import {
 import { emitFinanceRefresh } from "@/lib/finance-events"
 import { migrateIndexedDbToCloud } from "@/lib/migrate-local-to-cloud"
 import { cn } from "@/lib/utils"
+import { resolveLoginEmail } from "@/server/resolve-login"
 
 function syncLocalDataInBackground() {
   void migrateIndexedDbToCloud()
@@ -40,18 +48,29 @@ export function LoginForm({
   ...props
 }: React.ComponentProps<"div">) {
   const navigate = useNavigate()
-  const [email, setEmail] = useState("")
+  const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [identifierError, setIdentifierError] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    setIdentifierError(null)
+    setPasswordError(null)
     setSubmitting(true)
     try {
+      const { email } = await resolveLoginEmail({
+        data: { identifier: identifier.trim() },
+      })
       const result = await authClient.signIn.email({ email, password })
       if (result.error) {
         throw new Error(
-          authErrorMessage(result.error, "Invalid email or password"),
+          authErrorMessage(
+            result.error,
+            "Invalid email, username, or password",
+          ),
         )
       }
 
@@ -61,7 +80,16 @@ export function LoginForm({
       void navigate({ to: "/" })
       syncLocalDataInBackground()
     } catch (e) {
-      toast.error(authErrorMessage(e, "Could not sign in"))
+      const message = authErrorMessage(e, "Could not sign in")
+      if (
+        message.toLowerCase().includes("email or username") ||
+        message.toLowerCase().includes("no account found") ||
+        message.toLowerCase().includes("multiple accounts")
+      ) {
+        setIdentifierError(message)
+      } else {
+        setPasswordError(message)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -79,28 +107,55 @@ export function LoginForm({
                   Sign in to load your synced RupeeLens data.
                 </p>
               </div>
-              <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
+              <Field data-invalid={identifierError ? true : undefined}>
+                <FieldLabel htmlFor="identifier">Email or username</FieldLabel>
                 <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="identifier"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="you@example.com or Akshay"
+                  value={identifier}
+                  onChange={(e) => {
+                    setIdentifier(e.target.value)
+                    setIdentifierError(null)
+                  }}
+                  aria-invalid={!!identifierError}
                   required
                 />
+                <FieldError>{identifierError}</FieldError>
               </Field>
-              <Field>
+              <Field data-invalid={passwordError ? true : undefined}>
                 <FieldLabel htmlFor="password">Password</FieldLabel>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <InputGroup>
+                  <InputGroupInput
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      setPasswordError(null)
+                    }}
+                    aria-invalid={!!passwordError}
+                    required
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      size="icon-xs"
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
+                      onClick={() => setShowPassword((visible) => !visible)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+                <FieldError>{passwordError}</FieldError>
               </Field>
               <Field>
                 <Button type="submit" className="w-full" disabled={submitting}>

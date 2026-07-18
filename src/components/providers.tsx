@@ -2,7 +2,6 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import { NeonAuthUIProvider } from "@neondatabase/auth-ui"
 import { ShellChromeProvider } from "@/components/layout/shell-chrome"
 import { ThemeProvider } from "@/components/theme-provider"
-import { CategorizeJobProvider } from "@/components/upload/categorize-job-context"
 import { UploadProvider } from "@/components/upload/upload-context"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { authClient } from "@/lib/auth/client"
@@ -26,7 +25,7 @@ function AuthUiBridge({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** App-wide providers (FinanceProvider + AiProvider live in AppShell). */
+/** App-wide providers (FinanceProvider, AiProvider, CategorizeJobProvider live in AppShell). */
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider
@@ -39,9 +38,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <TooltipProvider>
         <AuthUiBridge>
           <ShellChromeProvider>
-            <CategorizeJobProvider>
-              <UploadProvider>{children}</UploadProvider>
-            </CategorizeJobProvider>
+            <UploadProvider>{children}</UploadProvider>
           </ShellChromeProvider>
         </AuthUiBridge>
       </TooltipProvider>

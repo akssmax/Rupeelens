@@ -1,16 +1,16 @@
 import { useCallback, useMemo } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { getISOWeek, getISOWeekYear, parseISO } from "date-fns"
-import { Loader2, Sparkles } from "lucide-react"
+import { DrillDownPageHeader } from "@/components/drill-down-page-header"
 import { EmptyState } from "@/components/empty-state"
 import { TransactionsPageSkeleton } from "@/components/page-skeletons"
-import { MonthSelect } from "@/components/month-select"
+import { TransactionPageActions } from "@/components/transactions/transaction-page-actions"
 import { TransactionTable } from "@/components/transactions/transaction-table"
 import { useCategorizeJob } from "@/components/upload/categorize-job-context"
-import { Button } from "@/components/ui/button"
 import { useFinanceData } from "@/hooks/use-finance-data"
 import { filterByMonth } from "@/lib/analytics"
 import { resolveCategoryName } from "@/lib/categories"
+import { filterTransactionsForExport } from "@/lib/export-transactions"
 import { formatDisplayDate } from "@/lib/format"
 import type { CategoryId } from "@/lib/types"
 
@@ -97,6 +97,8 @@ function TransactionsPage() {
     return null
   }, [merchant, category, date, week, categories])
 
+  const isFilteredView = Boolean(filterHint)
+
   const uncategorizedCount = useMemo(
     () =>
       transactions.filter(
@@ -112,12 +114,45 @@ function TransactionsPage() {
     [changeCategory],
   )
 
-  const autoCategorize = async (force = false) => {
-    await startJob(transactions, {
-      force,
-      label: "Auto-categorizing transactions",
-    })
-  }
+  const autoCategorize = useCallback(
+    async (force = false) => {
+      await startJob(transactions, {
+        force,
+        label: force ? "Re-categorizing transactions" : "Auto-categorizing transactions",
+      })
+    },
+    [startJob, transactions],
+  )
+
+  const exportRows = useMemo(
+    () =>
+      filterTransactionsForExport(monthTransactions, {
+        merchant,
+        categoryId: category,
+      }),
+    [monthTransactions, merchant, category],
+  )
+
+  const exportTitle = filterHint ?? `Transactions ${month}`
+  const exportFilename = useMemo(() => {
+    if (month) return `transactions-${month}`
+    return "transactions"
+  }, [month])
+
+  const headerActions = (
+    <TransactionPageActions
+      months={months}
+      month={month}
+      onMonthChange={setMonth}
+      uncategorizedCount={uncategorizedCount}
+      running={running}
+      onAutoCategorize={(force) => void autoCategorize(force)}
+      exportRows={exportRows}
+      categories={categories}
+      exportTitle={exportTitle}
+      exportFilename={exportFilename}
+    />
+  )
 
   if (loading) {
     return <TransactionsPageSkeleton />
@@ -129,31 +164,25 @@ function TransactionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">
-            Transactions
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            {filterHint ??
-              `Auto-categorize with rules + Mistral · ${uncategorizedCount} still need work`}
-          </p>
+      {isFilteredView ? (
+        <DrillDownPageHeader
+          title={filterHint!}
+          actions={headerActions}
+        />
+      ) : (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="font-heading text-2xl font-semibold tracking-tight">
+              Transactions
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Auto-categorize with rules + Mistral · {uncategorizedCount} still
+              need work
+            </p>
+          </div>
+          {headerActions}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <MonthSelect months={months} value={month} onChange={setMonth} />
-          <Button
-            onClick={() => void autoCategorize(false)}
-            disabled={running || uncategorizedCount === 0}
-          >
-            {running ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Sparkles className="size-4" />
-            )}
-            Auto-categorize
-          </Button>
-        </div>
-      </div>
+      )}
 
       <TransactionTable
         transactions={monthTransactions}

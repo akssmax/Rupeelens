@@ -113,6 +113,14 @@ export async function getAllTransactions(): Promise<Transaction[]> {
   return all.sort((a, b) => b.date.localeCompare(a.date))
 }
 
+/** Fast IndexedDB probe — avoids loading full rows for boot routing. */
+export async function hasLocalTransactions(): Promise<boolean> {
+  if (typeof indexedDB === "undefined") return false
+  const db = await getDb()
+  const count = await db.count("transactions")
+  return count > 0
+}
+
 export async function getTransactionsByMonth(
   month: string,
 ): Promise<Transaction[]> {

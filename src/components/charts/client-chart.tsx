@@ -12,6 +12,9 @@ import { cn } from "@/lib/utils"
 
 type Size = { width: number; height: number }
 
+const CHART_SURFACE_CLASS =
+  "text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line]:stroke-border/40 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-opacity-40 [&_.recharts-layer]:outline-hidden [&_.recharts-surface]:outline-hidden"
+
 function ChartSkeleton({
   className,
   minHeight,
@@ -88,7 +91,12 @@ export function ClientChart({
   return (
     <div
       ref={hostRef}
-      className={cn("relative w-full min-w-0", fill && "h-full", className)}
+      className={cn(
+        "relative w-full min-w-0",
+        CHART_SURFACE_CLASS,
+        fill && "h-full",
+        className,
+      )}
       style={fill ? { minHeight } : { height: minHeight, minHeight }}
     >
       {ready && isValidElement(children) ? (

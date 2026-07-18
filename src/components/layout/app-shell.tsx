@@ -3,9 +3,10 @@ import { AiFab, AiSidepanel } from "@/components/ai/ai-sidepanel"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { useShellChrome } from "@/components/layout/shell-chrome"
+import { CategorizeJobProvider } from "@/components/upload/categorize-job-provider"
 import { CategorizeProgressPopover } from "@/components/upload/categorize-progress-popover"
 import { UploadModal } from "@/components/upload/upload-modal"
-import { FinanceProvider } from "@/hooks/use-finance-data"
+import { FinanceProvider, useFinanceData } from "@/hooks/use-finance-data"
 import {
   SidebarInset,
   SidebarProvider,
@@ -16,7 +17,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <FinanceProvider>
       <AiProvider>
-        <AppShellChrome>{children}</AppShellChrome>
+        <CategorizeJobProvider>
+          <AppShellChrome>{children}</AppShellChrome>
+        </CategorizeJobProvider>
       </AiProvider>
     </FinanceProvider>
   )
@@ -24,7 +27,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function AppShellChrome({ children }: { children: React.ReactNode }) {
   const { open, setOpen, openAi } = useAiPanel()
-  const { minimal } = useShellChrome()
+  const { minimal: minimalShell } = useShellChrome()
+  const { isSignedIn, hasLocalData, transactions } = useFinanceData()
+
+  // Hide sidebar on first visit / empty IndexedDB before onboarding mounts.
+  const welcomeChrome =
+    !isSignedIn &&
+    transactions.length === 0 &&
+    hasLocalData !== true
+  const minimal = minimalShell || welcomeChrome
 
   if (minimal) {
     return (

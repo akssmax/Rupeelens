@@ -106,6 +106,9 @@ export function SignupForm({
                   onChange={(e) => setName(e.target.value)}
                   required
                 />
+                <FieldDescription>
+                  Used for sign-in and your profile display name.
+                </FieldDescription>
               </Field>
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>

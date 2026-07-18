@@ -9,7 +9,7 @@ import {
   YAxis,
 } from "recharts"
 import { ClientChart } from "@/components/charts/client-chart"
-import { AmountChartTooltip } from "@/components/charts/chart-tooltip"
+import { AmountChartTooltip, CHART_TOOLTIP_CURSOR } from "@/components/charts/chart-tooltip"
 import type { SpendChartDatum } from "@/lib/chart-types"
 
 export const SpendBars = memo(function SpendBars({
@@ -66,6 +66,7 @@ export const SpendBars = memo(function SpendBars({
           content={
             <AmountChartTooltip hint="Click to view transactions for this period" />
           }
+          cursor={CHART_TOOLTIP_CURSOR}
         />
         <Bar
           dataKey="amount"

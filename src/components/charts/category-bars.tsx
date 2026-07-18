@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts"
 import { ClientChart } from "@/components/charts/client-chart"
-import { CategoryChartTooltip } from "@/components/charts/chart-tooltip"
+import { CategoryChartTooltip, CHART_TOOLTIP_CURSOR } from "@/components/charts/chart-tooltip"
 import type { CategoryChartDatum } from "@/lib/chart-types"
 
 export const CategoryBars = memo(function CategoryBars({
@@ -65,7 +65,7 @@ export const CategoryBars = memo(function CategoryBars({
           axisLine={false}
           tickLine={false}
         />
-        <Tooltip content={<CategoryChartTooltip />} />
+        <Tooltip content={<CategoryChartTooltip />} cursor={CHART_TOOLTIP_CURSOR} />
         <Bar
           dataKey="amount"
           radius={[0, 4, 4, 0]}

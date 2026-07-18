@@ -36,6 +36,9 @@ function DashboardPage() {
   const {
     loading,
     transactions,
+    isSignedIn,
+    isAuthPending,
+    hasLocalData,
     month,
     setMonth,
     months,
@@ -70,12 +73,27 @@ function DashboardPage() {
     [summary],
   )
 
-  if (loading) {
-    return <DashboardSkeleton />
+  const showWelcome =
+    !isSignedIn &&
+    !isAuthPending &&
+    (transactions.length === 0 || (loading && hasLocalData === false))
+
+  if (isAuthPending) {
+    if (hasLocalData === true) {
+      return <DashboardSkeleton />
+    }
+    if (hasLocalData === false) {
+      return <Onboarding />
+    }
+    return null
   }
 
-  if (transactions.length === 0) {
+  if (showWelcome) {
     return <Onboarding />
+  }
+
+  if (loading) {
+    return <DashboardSkeleton />
   }
 
   return (
