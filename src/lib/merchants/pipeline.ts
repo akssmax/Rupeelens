@@ -1,7 +1,7 @@
-import type { CategoryId, Transaction } from "../types"
-import { merchantKeyFromDescription } from "./keys"
+import type { CategoryId, MerchantMemory, Transaction } from "../types"
 import { findCatalogMerchant } from "./catalog"
 import { extractMerchantName } from "./extract"
+import { lookupMerchantMemory } from "./memory"
 
 export type CategorizeSource = "rules" | "memory" | "llm"
 
@@ -42,23 +42,21 @@ export function applyRuleCategorization(
  */
 export function applyMemoryCategorization(
   transactions: Transaction[],
-  memory: Map<string, CategoryId>,
+  memory: Map<string, MerchantMemory>,
   alreadyResolved: Set<string>,
 ): LocalCategorizeHit[] {
   const hits: LocalCategorizeHit[] = []
   for (const t of transactions) {
     if (alreadyResolved.has(t.id)) continue
     const merchant = extractMerchantName(t.description)
-    const categoryId =
-      memory.get(merchantKeyFromDescription(merchant)) ||
-      memory.get(merchant.toLowerCase()) ||
-      memory.get(merchantKeyFromDescription(t.description))
-    if (!categoryId) continue
+    const memoryHit = lookupMerchantMemory(t.description, merchant, memory)
+    if (!memoryHit) continue
     hits.push({
       id: t.id,
-      merchant,
-      categoryId,
-      isSubscription: categoryId === "subscriptions",
+      merchant: memoryHit.merchantName || merchant,
+      categoryId: memoryHit.categoryId,
+      isSubscription:
+        memoryHit.isSubscription ?? memoryHit.categoryId === "subscriptions",
       confidence: 0.9,
       source: "memory",
     })

@@ -26,7 +26,7 @@ export const SpendBars = memo(function SpendBars({
   }
 
   return (
-    <ClientChart className="h-72" minHeight={288}>
+    <ClientChart fill minHeight={288}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e0d8" />
         <XAxis

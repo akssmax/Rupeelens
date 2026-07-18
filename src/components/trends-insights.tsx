@@ -1,27 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react"
 import { Lightbulb, Loader2, RefreshCw, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendsInsightsSkeleton } from "@/components/page-skeletons"
-import { buildTrendsContext } from "@/lib/finance-context"
+import { useTrendInsights } from "@/hooks/use-trend-insights"
 import { formatINR, formatMonthLabel } from "@/lib/format"
 import type { Transaction } from "@/lib/types"
-import {
-  generateTrendInsights,
-  type TrendInsightsResult,
-} from "@/server/insights"
-
-const cache = new Map<string, TrendInsightsResult>()
-
-function trendsCacheKey(month: string, transactions: Transaction[]): string {
-  let hash = 0
-  for (const t of transactions) {
-    if (!t.date.startsWith(month)) continue
-    hash = (hash * 31 + t.categoryId.charCodeAt(0) + t.debit + t.credit) | 0
-  }
-  return `${month}:${hash}`
-}
 
 export function TrendsInsights({
   transactions,
@@ -30,57 +14,10 @@ export function TrendsInsights({
   transactions: Transaction[]
   month: string
 }) {
-  const cacheKey = useMemo(
-    () => trendsCacheKey(month, transactions),
-    [month, transactions],
+  const { data, loading, error, refresh } = useTrendInsights(
+    transactions,
+    month,
   )
-  const [data, setData] = useState<TrendInsightsResult | null>(
-    () => cache.get(cacheKey) ?? null,
-  )
-  const [loading, setLoading] = useState(!cache.has(cacheKey))
-  const [error, setError] = useState<string | null>(null)
-  const requestId = useRef(0)
-
-  const load = async (force = false) => {
-    if (!month) return
-    if (!force && cache.has(cacheKey)) {
-      setData(cache.get(cacheKey)!)
-      setLoading(false)
-      setError(null)
-      return
-    }
-
-    const id = ++requestId.current
-    setLoading(true)
-    setError(null)
-    try {
-      const financeContext = buildTrendsContext(transactions, month)
-      const result = await generateTrendInsights({
-        data: {
-          financeContext,
-          monthLabel: formatMonthLabel(month),
-        },
-      })
-      if (id !== requestId.current) return
-      cache.set(cacheKey, result)
-      setData(result)
-    } catch (e) {
-      if (id !== requestId.current) return
-      const message = e instanceof Error ? e.message : String(e)
-      setError(message)
-      toast.error("Could not load AI insights", { description: message })
-    } finally {
-      if (id === requestId.current) setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    const cached = cache.get(cacheKey)
-    setData(cached ?? null)
-    setLoading(!cached)
-    setError(null)
-    if (!cached) void load(false)
-  }, [cacheKey])
 
   return (
     <Card>
@@ -97,7 +34,13 @@ export function TrendsInsights({
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => void load(true)}
+          onClick={() => {
+            void refresh().catch((e) => {
+              toast.error(
+                e instanceof Error ? e.message : "Could not refresh insights",
+              )
+            })
+          }}
           disabled={loading}
           aria-label="Refresh insights"
         >
@@ -111,10 +54,20 @@ export function TrendsInsights({
       <CardContent className="space-y-4">
         {loading && !data ? <TrendsInsightsSkeleton /> : null}
 
+        {error && data?.source === "local" ? (
+          <p className="text-muted-foreground text-xs">
+            AI unavailable — showing estimates from your data.
+          </p>
+        ) : null}
+
         {error && !data ? (
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">{error}</p>
-            <Button size="sm" variant="outline" onClick={() => void load(true)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void refresh()}
+            >
               Try again
             </Button>
           </div>

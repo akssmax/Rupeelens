@@ -3,6 +3,7 @@ import { Link, createFileRoute } from "@tanstack/react-router"
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  ChevronRight,
   Sparkles,
   TrendingUp,
   Upload,
@@ -13,6 +14,7 @@ import { CashflowChart } from "@/components/charts/cashflow-chart"
 import { CategoryBars } from "@/components/charts/category-bars"
 import { CategoryPie } from "@/components/charts/category-pie"
 import { SpendBars } from "@/components/charts/spend-bars"
+import { DashboardAiWidgets } from "@/components/dashboard-ai-widgets"
 import { Onboarding } from "@/components/onboarding"
 import { DashboardSkeleton } from "@/components/page-skeletons"
 import { TrendsInsights } from "@/components/trends-insights"
@@ -149,15 +151,17 @@ function DashboardPage() {
 
             {view === "overview" ? (
               <div className="space-y-4">
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <Card>
+                <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+                  <Card className="flex h-full flex-col">
                     <CardHeader>
                       <CardTitle className="text-base">
                         Spend by category
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <CategoryPie data={categoryChartData} />
+                    <CardContent className="flex min-h-0 flex-1 flex-col">
+                      <div className="min-h-56 flex-1">
+                        <CategoryPie data={categoryChartData} />
+                      </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {summary.byCategory.slice(0, 8).map((c) => (
                           <Badge key={c.categoryId} variant="secondary">
@@ -172,31 +176,31 @@ function DashboardPage() {
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card className="flex h-full flex-col">
                     <CardHeader>
                       <CardTitle className="text-base">
                         Category breakdown
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex min-h-0 flex-1 flex-col">
                       <CategoryBars data={categoryChartData} />
                     </CardContent>
                   </Card>
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <Card>
+                <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+                  <Card className="flex h-full flex-col">
                     <CardHeader>
                       <CardTitle className="text-base">
                         Weekly income vs expense
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex min-h-0 flex-1 flex-col">
                       <CashflowChart data={cashflow} />
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card className="flex h-full flex-col">
                     <CardHeader>
                       <CardTitle className="text-base">Top merchants</CardTitle>
                     </CardHeader>
@@ -205,9 +209,11 @@ function DashboardPage() {
                         <p className="text-muted-foreground text-sm">No debits</p>
                       ) : (
                         summary.topMerchants.map((m) => (
-                          <div
+                          <Link
                             key={m.merchant}
-                            className="flex items-center justify-between gap-3 text-sm"
+                            to="/transactions"
+                            search={{ merchant: m.merchant }}
+                            className="group -mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
                             <div className="flex min-w-0 items-center gap-3">
                               <MerchantAvatar
@@ -215,7 +221,7 @@ function DashboardPage() {
                                 categoryId={m.categoryId}
                               />
                               <div className="min-w-0">
-                                <p className="truncate font-medium">
+                                <p className="truncate font-medium group-hover:text-foreground">
                                   {m.merchant}
                                 </p>
                                 <p className="text-muted-foreground text-xs">
@@ -223,15 +229,23 @@ function DashboardPage() {
                                 </p>
                               </div>
                             </div>
-                            <span className="font-medium tabular-nums">
+                            <span className="flex shrink-0 items-center gap-1.5 font-medium tabular-nums">
                               {formatINR(m.amount)}
+                              <ChevronRight className="text-muted-foreground size-4 opacity-0 transition-opacity group-hover:opacity-100" />
                             </span>
-                          </div>
+                          </Link>
                         ))
                       )}
                     </CardContent>
                   </Card>
                 </div>
+
+                {month ? (
+                  <DashboardAiWidgets
+                    transactions={transactions}
+                    month={month}
+                  />
+                ) : null}
               </div>
             ) : null}
 

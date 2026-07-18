@@ -17,7 +17,7 @@ export const CategoryPie = memo(function CategoryPie({
   }
 
   return (
-    <ClientChart className="mx-auto h-56 max-w-sm" minHeight={224}>
+    <ClientChart fill className="mx-auto w-full max-w-sm" minHeight={200}>
       <PieChart>
         <Pie
           data={data}

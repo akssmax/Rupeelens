@@ -27,7 +27,7 @@ export const CategoryBars = memo(function CategoryBars({
   const chartData = data.slice(0, 8)
 
   return (
-    <ClientChart className="h-56" minHeight={224}>
+    <ClientChart fill minHeight={224}>
       <BarChart
         data={chartData}
         layout="vertical"

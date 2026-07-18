@@ -4,6 +4,7 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { useShellChrome } from "@/components/layout/shell-chrome"
 import { UploadModal } from "@/components/upload/upload-modal"
+import { CategorizeProgressPopover } from "@/components/upload/categorize-progress-popover"
 import {
   SidebarInset,
   SidebarProvider,
@@ -32,6 +33,7 @@ function AppShellChrome({ children }: { children: React.ReactNode }) {
         </div>
         <AiSidepanel open={open} onOpenChange={setOpen} />
         <UploadModal />
+        <CategorizeProgressPopover />
       </div>
     )
   }
@@ -51,6 +53,7 @@ function AppShellChrome({ children }: { children: React.ReactNode }) {
       <AiFab onClick={openAi} />
       <AiSidepanel open={open} onOpenChange={setOpen} />
       <UploadModal />
+      <CategorizeProgressPopover />
     </SidebarProvider>
   )
 }

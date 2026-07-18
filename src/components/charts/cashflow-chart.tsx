@@ -28,7 +28,7 @@ export const CashflowChart = memo(function CashflowChart({
   }
 
   return (
-    <ClientChart className="h-56" minHeight={224}>
+    <ClientChart fill minHeight={224}>
       <BarChart
         data={data}
         margin={{ top: 8, right: 8, left: 0, bottom: 0 }}

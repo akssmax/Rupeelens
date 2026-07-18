@@ -68,6 +68,10 @@ export interface MerchantMemory {
   merchantKey: string
   categoryId: CategoryId
   updatedAt: string
+  /** Display name for fuzzy matching (e.g. "Netflix") */
+  merchantName?: string
+  isSubscription?: boolean
+  source?: "rules" | "memory" | "llm" | "user"
 }
 
 export interface AppSettings {

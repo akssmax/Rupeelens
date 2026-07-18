@@ -15,14 +15,16 @@ type Size = { width: number; height: number }
 function ChartSkeleton({
   className,
   minHeight,
+  fill,
 }: {
   className?: string
   minHeight: number
+  fill?: boolean
 }) {
   return (
     <div
-      className={cn("relative w-full min-w-0", className)}
-      style={{ height: minHeight, minHeight }}
+      className={cn("relative w-full min-w-0", fill && "h-full", className)}
+      style={fill ? { minHeight } : { height: minHeight, minHeight }}
     >
       <Skeleton className="absolute inset-0 rounded-lg" />
     </div>
@@ -37,10 +39,13 @@ export function ClientChart({
   className,
   children,
   minHeight = 200,
+  fill = false,
 }: {
   className?: string
   children: ReactElement<{ width?: number; height?: number }>
   minHeight?: number
+  /** When true, grow to fill the parent height (parent must define height). */
+  fill?: boolean
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
@@ -73,7 +78,9 @@ export function ClientChart({
   }, [mounted])
 
   if (!mounted) {
-    return <ChartSkeleton className={className} minHeight={minHeight} />
+    return (
+      <ChartSkeleton className={className} minHeight={minHeight} fill={fill} />
+    )
   }
 
   const ready = size.width >= 1 && size.height >= 1
@@ -81,8 +88,8 @@ export function ClientChart({
   return (
     <div
       ref={hostRef}
-      className={cn("relative w-full min-w-0", className)}
-      style={{ height: minHeight, minHeight }}
+      className={cn("relative w-full min-w-0", fill && "h-full", className)}
+      style={fill ? { minHeight } : { height: minHeight, minHeight }}
     >
       {ready && isValidElement(children) ? (
         <ErrorBoundary fallbackTitle="Chart failed to render" compact>

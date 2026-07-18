@@ -23,8 +23,8 @@ const steps = [
   },
   {
     icon: Tags,
-    title: "Auto-categorize",
-    body: "Rules catch Blinkit, Swiggy, Netflix and friends; Mistral labels the rest.",
+    title: "Auto-categorize in the background",
+    body: "Rules catch Blinkit, Swiggy, Netflix and friends; Mistral labels the rest while you explore your dashboard.",
   },
 ]
 
@@ -57,7 +57,7 @@ export function Onboarding() {
         </div>
         <p className="text-muted-foreground flex items-center justify-center gap-1.5 text-xs">
           <Sparkles className="size-3.5" />
-          AI categorization runs automatically after import
+          Categorization runs in the background — no waiting on a modal
         </p>
       </motion.div>
 
@@ -93,8 +93,8 @@ export function Onboarding() {
       </div>
 
       <p className="text-muted-foreground text-center text-xs">
-        Tip: statements stay on this device. Only short narration snippets are
-        sent when you categorize with AI.
+        Tip: merchant categories you confirm are saved on this device — future
+        uploads skip AI for those merchants.
       </p>
     </div>
   )

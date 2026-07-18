@@ -1,7 +1,5 @@
 import {
-  getMerchantMemoryMap,
-  merchantKeyFromDescription,
-  putMerchantMemory,
+  getMerchantMemoryIndex,
   updateTransactionsBatch,
 } from "./db"
 import {
@@ -10,16 +8,24 @@ import {
   extractMerchantName,
   needsLlm,
 } from "./merchants/pipeline"
+import { rememberMerchantMapping } from "./merchants/memory"
 import type { CategorizeInput, CategorizeResult, Transaction } from "./types"
 import { categorizeTransactions } from "@/server/categorize"
 
 const BATCH_SIZE = 40
+const MEMORY_CONFIDENCE_THRESHOLD = 0.5
 
 export type CategorizeProgress = {
   phase: "rules" | "memory" | "llm" | "done"
   done: number
   total: number
   label: string
+}
+
+export type CategorizeOptions = {
+  force?: boolean
+  /** Called after each phase or LLM batch so the UI can refresh incrementally. */
+  onPhaseComplete?: () => void
 }
 
 /**
@@ -31,7 +37,7 @@ export type CategorizeProgress = {
 export async function runCategorization(
   transactions: Transaction[],
   onProgress?: (p: CategorizeProgress) => void,
-  options?: { force?: boolean },
+  options?: CategorizeOptions,
 ): Promise<{
   updated: number
   rules: number
@@ -63,6 +69,8 @@ export async function runCategorization(
   const errors: string[] = []
   const resolved = new Set<string>()
 
+  const refresh = () => options?.onPhaseComplete?.()
+
   // --- Layer 1: rules ---
   onProgress?.({
     phase: "rules",
@@ -85,13 +93,18 @@ export async function runCategorization(
     )
     for (const h of ruleHits) {
       resolved.add(h.id)
-      await putMerchantMemory(
-        merchantKeyFromDescription(h.merchant),
-        h.categoryId,
-      )
+      const tx = scope.find((t) => t.id === h.id)
+      await rememberMerchantMapping({
+        merchant: h.merchant,
+        description: tx?.description ?? h.merchant,
+        categoryId: h.categoryId,
+        isSubscription: h.isSubscription,
+        source: "rules",
+      })
     }
     rules = ruleHits.length
     updated += rules
+    refresh()
   }
   onProgress?.({
     phase: "rules",
@@ -107,9 +120,8 @@ export async function runCategorization(
     total,
     label: "Applying learned merchants…",
   })
-  const memoryMap = await getMerchantMemoryMap()
-  // Also index by extracted merchant name keys already in memory
-  const memoryHits = applyMemoryCategorization(scope, memoryMap, resolved)
+  const memoryIndex = await getMerchantMemoryIndex()
+  const memoryHits = applyMemoryCategorization(scope, memoryIndex, resolved)
   if (memoryHits.length) {
     await updateTransactionsBatch(
       memoryHits.map((h) => ({
@@ -125,7 +137,14 @@ export async function runCategorization(
     for (const h of memoryHits) resolved.add(h.id)
     memory = memoryHits.length
     updated += memory
+    refresh()
   }
+  onProgress?.({
+    phase: "memory",
+    done: resolved.size,
+    total,
+    label: `Learned mappings applied to ${memory}`,
+  })
 
   // --- Layer 3: LLM ---
   const pending = needsLlm(scope, resolved)
@@ -136,7 +155,7 @@ export async function runCategorization(
     label:
       pending.length > 0
         ? `Asking Mistral about ${pending.length} transactions…`
-        : "Skipping LLM — all matched locally",
+        : "Skipping AI — all matched locally",
   })
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
@@ -159,20 +178,24 @@ export async function runCategorization(
         const r = byId.get(t.id)
         if (!r) continue
         const merchant = r.merchant || extractMerchantName(t.description)
+        const confidence = r.confidence ?? 0.5
         updates.push({
           id: t.id,
           patch: {
             categoryId: r.category,
             merchant,
             isSubscription: r.isSubscription ?? false,
-            confidence: r.confidence ?? 0.5,
+            confidence,
           },
         })
-        if (r.confidence >= 0.7 && merchant) {
-          await putMerchantMemory(
-            merchantKeyFromDescription(merchant),
-            r.category,
-          )
+        if (confidence >= MEMORY_CONFIDENCE_THRESHOLD && merchant) {
+          await rememberMerchantMapping({
+            merchant,
+            description: t.description,
+            categoryId: r.category,
+            isSubscription: r.isSubscription ?? false,
+            source: "llm",
+          })
         }
         resolved.add(t.id)
       }
@@ -180,8 +203,8 @@ export async function runCategorization(
       await updateTransactionsBatch(updates)
       llm += updates.length
       updated += updates.length
+      refresh()
     } catch (e) {
-      // Still extract merchant names locally so UI shows logos/names
       const fallback = slice
         .filter((t) => !resolved.has(t.id))
         .map((t) => ({
@@ -200,7 +223,7 @@ export async function runCategorization(
       phase: "llm",
       done: Math.min(total, resolved.size),
       total,
-      label: `Mistral categorized ${llm}`,
+      label: `AI categorized ${llm} of ${pending.length}`,
     })
   }
 

@@ -147,16 +147,58 @@ export async function getMerchantMemoryMap(): Promise<
   return new Map(rows.map((r) => [r.merchantKey, r.categoryId]))
 }
 
+export async function getMerchantMemoryIndex(): Promise<
+  Map<string, MerchantMemory>
+> {
+  const rows = await getMerchantMemory()
+  return new Map(rows.map((r) => [r.merchantKey, r]))
+}
+
 export async function putMerchantMemory(
   merchantKey: string,
   categoryId: CategoryId,
+  meta?: Pick<
+    MerchantMemory,
+    "merchantName" | "isSubscription" | "source"
+  >,
 ): Promise<void> {
   const db = await getDb()
+  const existing = await db.get("merchantMemory", merchantKey)
   await db.put("merchantMemory", {
     merchantKey,
     categoryId,
     updatedAt: new Date().toISOString(),
+    merchantName: meta?.merchantName ?? existing?.merchantName,
+    isSubscription: meta?.isSubscription ?? existing?.isSubscription,
+    source: meta?.source ?? existing?.source,
   })
+}
+
+export async function putMerchantMemoryBatch(
+  entries: Array<{
+    merchantKey: string
+    categoryId: CategoryId
+    merchantName?: string
+    isSubscription?: boolean
+    source?: MerchantMemory["source"]
+  }>,
+): Promise<void> {
+  if (entries.length === 0) return
+  const db = await getDb()
+  const tx = db.transaction("merchantMemory", "readwrite")
+  const now = new Date().toISOString()
+  for (const entry of entries) {
+    const existing = await tx.store.get(entry.merchantKey)
+    await tx.store.put({
+      merchantKey: entry.merchantKey,
+      categoryId: entry.categoryId,
+      updatedAt: now,
+      merchantName: entry.merchantName ?? existing?.merchantName,
+      isSubscription: entry.isSubscription ?? existing?.isSubscription,
+      source: entry.source ?? existing?.source,
+    })
+  }
+  await tx.done
 }
 
 export async function saveImport(params: {

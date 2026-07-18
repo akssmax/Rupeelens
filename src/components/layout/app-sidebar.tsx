@@ -3,17 +3,21 @@ import { Link, useRouterState } from "@tanstack/react-router"
 import {
   ArrowLeftRight,
   ChevronsUpDown,
+  CloudUpload,
+  Ghost,
   LayoutDashboard,
   PanelLeftClose,
   Receipt,
   Repeat,
   Wallet,
 } from "lucide-react"
+import { toast } from "sonner"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -40,10 +44,10 @@ const nav = [
   { to: "/credits-debits", label: "Credits / Debits", icon: ArrowLeftRight },
 ] as const
 
-const USER = {
-  name: "Akshay",
-  email: "Local · browser only",
-  initials: "AS",
+const INCOGNITO_USER = {
+  label: "Incognito",
+  subtitle: "Saved in this browser",
+  hint: "Statements and categories stay on this device until you create an account.",
 }
 
 export const AppSidebar = memo(function AppSidebar() {
@@ -124,14 +128,16 @@ export const AppSidebar = memo(function AppSidebar() {
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <Avatar size="sm" className="rounded-lg">
-                    <AvatarFallback className="bg-primary text-primary-foreground rounded-lg text-xs">
-                      {USER.initials}
+                    <AvatarFallback className="bg-muted text-muted-foreground rounded-lg">
+                      <Ghost className="size-4" />
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">{USER.name}</span>
+                    <span className="truncate font-medium">
+                      {INCOGNITO_USER.label}
+                    </span>
                     <span className="text-muted-foreground truncate text-xs">
-                      {USER.email}
+                      {INCOGNITO_USER.subtitle}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto size-4" />
@@ -146,18 +152,35 @@ export const AppSidebar = memo(function AppSidebar() {
                 <DropdownMenuLabel className="p-0 font-normal">
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                     <Avatar size="sm" className="rounded-lg">
-                      <AvatarFallback className="bg-primary text-primary-foreground rounded-lg text-xs">
-                        {USER.initials}
+                      <AvatarFallback className="bg-muted text-muted-foreground rounded-lg">
+                        <Ghost className="size-4" />
                       </AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-medium">{USER.name}</span>
+                      <span className="truncate font-medium">
+                        {INCOGNITO_USER.label}
+                      </span>
                       <span className="text-muted-foreground truncate text-xs">
-                        Data stays on this device
+                        {INCOGNITO_USER.subtitle}
                       </span>
                     </div>
                   </div>
                 </DropdownMenuLabel>
+                <p className="text-muted-foreground px-2 pb-1 text-xs leading-relaxed">
+                  {INCOGNITO_USER.hint}
+                </p>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    toast.message("Sign up coming soon", {
+                      description:
+                        "You'll be able to sync statements across devices.",
+                    })
+                  }}
+                >
+                  <CloudUpload className="size-4" />
+                  Sign up to save & sync
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <div className="flex items-center justify-between px-2 py-1.5">
                   <span className="text-muted-foreground text-xs">Theme</span>

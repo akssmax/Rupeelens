@@ -21,10 +21,9 @@ import {
   getAllTransactions,
   getCategories,
   updateTransaction,
-  putMerchantMemory,
-  merchantKeyFromDescription,
 } from "@/lib/db"
 import { onFinanceRefresh } from "@/lib/finance-events"
+import { rememberMerchantMapping } from "@/lib/merchants/memory"
 import type { Category, CategoryId, Statement, Transaction } from "@/lib/types"
 
 type FinanceContextValue = {
@@ -128,20 +127,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const changeCategory = useCallback(
     async (txId: string, categoryId: CategoryId, merchant?: string) => {
-      let memoryKey: string | undefined
+      let memoryTarget: Transaction | undefined
       setTransactions((prev) => {
         const tx = prev.find((t) => t.id === txId)
-        if (tx) {
-          memoryKey = merchantKeyFromDescription(
-            merchant || tx.merchant || tx.description,
-          )
-        }
+        if (tx) memoryTarget = tx
         return prev.map((t) => (t.id === txId ? { ...t, categoryId } : t))
       })
       try {
         await updateTransaction(txId, { categoryId })
-        if (memoryKey) {
-          await putMerchantMemory(memoryKey, categoryId)
+        if (memoryTarget) {
+          const merchantName =
+            merchant || memoryTarget.merchant || memoryTarget.description
+          await rememberMerchantMapping({
+            merchant: merchantName,
+            description: memoryTarget.description,
+            categoryId,
+            isSubscription: categoryId === "subscriptions",
+            source: "user",
+          })
         }
       } catch {
         await refresh()

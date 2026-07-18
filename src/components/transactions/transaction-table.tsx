@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Tag,
   Repeat,
+  X,
 } from "lucide-react"
 import { memo, useEffect, useMemo, useState } from "react"
 import { MerchantAvatar } from "@/components/merchant-avatar"
@@ -109,18 +110,35 @@ export function TransactionTable({
   categories,
   onCategoryChange,
   toolbar = "full",
+  initialFilters,
 }: {
   transactions: Transaction[]
   categories: Category[]
   onCategoryChange?: (id: string, categoryId: CategoryId) => void
   /** full = search, filters, sort, pagination; compact = sort + pagination only */
   toolbar?: "full" | "compact"
+  initialFilters?: {
+    merchant?: string
+    categoryId?: CategoryId
+  }
 }) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: "date", desc: true },
   ])
   const [globalFilter, setGlobalFilter] = useState("")
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
+    const filters: ColumnFiltersState = []
+    if (initialFilters?.merchant) {
+      filters.push({ id: "merchant", value: initialFilters.merchant })
+    }
+    if (initialFilters?.categoryId) {
+      filters.push({ id: "categoryId", value: initialFilters.categoryId })
+    }
+    return filters
+  })
+  const [merchantFilter, setMerchantFilter] = useState(
+    initialFilters?.merchant ?? "",
+  )
   const [amountMin, setAmountMin] = useState("")
   const [amountMax, setAmountMax] = useState("")
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false)
@@ -152,6 +170,12 @@ export function TransactionTable({
           <SortableHeader column={column}>Merchant</SortableHeader>
         ),
         sortingFn: "alphanumeric",
+        filterFn: (row, _columnId, value) => {
+          if (!value) return true
+          const q = String(value).toLowerCase()
+          const merchant = row.original.merchant?.toLowerCase() ?? ""
+          return merchant === q
+        },
         cell: ({ row }) => (
           <TransactionMerchantCell transaction={row.original} />
         ),
@@ -252,11 +276,26 @@ export function TransactionTable({
     },
   })
 
-  const typeFilter =
-    (table.getColumn("type")?.getFilterValue() as string | undefined) ?? "all"
   const categoryFilter =
     (table.getColumn("categoryId")?.getFilterValue() as string | undefined) ??
     "all"
+
+  const merchantOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const t of transactions) {
+      const name = t.merchant?.trim()
+      if (!name) continue
+      const key = name.toLowerCase()
+      if (!map.has(key)) map.set(key, name)
+    }
+    return [...map.values()].sort((a, b) => a.localeCompare(b))
+  }, [transactions])
+
+  const applyMerchantFilter = (value: string) => {
+    const next = value === "all" ? "" : value
+    setMerchantFilter(next)
+    table.getColumn("merchant")?.setFilterValue(next || undefined)
+  }
 
   const applyAmountFilter = (min: string, max: string) => {
     const parsed: AmountFilter = {}
@@ -273,6 +312,7 @@ export function TransactionTable({
     setGlobalFilter("")
     setAmountMin("")
     setAmountMax("")
+    setMerchantFilter("")
     setUncategorizedOnly(false)
     setSubscriptionsOnly(false)
     table.resetColumnFilters()
@@ -287,10 +327,23 @@ export function TransactionTable({
     table.setPageIndex(0)
   }, [globalFilter, columnFilters, table])
 
+  useEffect(() => {
+    if (!initialFilters) return
+    if (initialFilters.merchant) {
+      setMerchantFilter(initialFilters.merchant)
+      table.getColumn("merchant")?.setFilterValue(initialFilters.merchant)
+    }
+    if (initialFilters.categoryId) {
+      table
+        .getColumn("categoryId")
+        ?.setFilterValue(initialFilters.categoryId)
+    }
+  }, [initialFilters, table])
+
   const hasActiveFilters =
     toolbar === "full" &&
     (globalFilter ||
-      typeFilter !== "all" ||
+      merchantFilter ||
       categoryFilter !== "all" ||
       amountMin ||
       amountMax ||
@@ -309,26 +362,27 @@ export function TransactionTable({
     <div className="space-y-3">
       {toolbar === "full" ? (
         <div className="space-y-3 rounded-xl border bg-background/70 p-3">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
             <Input
               placeholder="Search description or merchant…"
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
-              className="max-w-xs"
+              className="min-w-[140px] flex-1"
             />
             <Select
-              value={typeFilter}
-              onValueChange={(v) =>
-                table.getColumn("type")?.setFilterValue(v === "all" ? undefined : v)
-              }
+              value={merchantFilter || "all"}
+              onValueChange={applyMerchantFilter}
             >
-              <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Type" />
+              <SelectTrigger className="w-[150px] shrink-0">
+                <SelectValue placeholder="Merchant" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                <SelectItem value="debit">Debits</SelectItem>
-                <SelectItem value="credit">Credits</SelectItem>
+                <SelectItem value="all">All merchants</SelectItem>
+                {merchantOptions.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select
@@ -339,7 +393,7 @@ export function TransactionTable({
                   ?.setFilterValue(v === "all" ? undefined : v)
               }
             >
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-[150px] shrink-0">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -360,7 +414,7 @@ export function TransactionTable({
                 setAmountMin(e.target.value)
                 applyAmountFilter(e.target.value, amountMax)
               }}
-              className="w-24"
+              className="w-20 shrink-0"
             />
             <Input
               type="number"
@@ -371,47 +425,55 @@ export function TransactionTable({
                 setAmountMax(e.target.value)
                 applyAmountFilter(amountMin, e.target.value)
               }}
-              className="w-24"
+              className="w-20 shrink-0"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Toggle
-              variant="outline"
-              size="sm"
-              pressed={uncategorizedOnly}
-              onPressedChange={(pressed) => {
-                setUncategorizedOnly(pressed)
-                table
-                  .getColumn("needsReview")
-                  ?.setFilterValue(pressed ? true : undefined)
-              }}
-              aria-label="Uncategorized only"
-            >
-              <Tag className="size-3.5" />
-              Needs review
-            </Toggle>
-            <Toggle
-              variant="outline"
-              size="sm"
-              pressed={subscriptionsOnly}
-              onPressedChange={(pressed) => {
-                setSubscriptionsOnly(pressed)
-                table
-                  .getColumn("subscription")
-                  ?.setFilterValue(pressed ? true : undefined)
-              }}
-              aria-label="Subscriptions only"
-            >
-              <Repeat className="size-3.5" />
-              Subscriptions
-            </Toggle>
-            {hasActiveFilters ? (
-              <Button variant="ghost" size="sm" onClick={resetFilters}>
-                <RotateCcw className="size-3.5" />
-                Reset filters
-              </Button>
-            ) : null}
-            <span className="text-muted-foreground ml-auto text-xs tabular-nums">
+          <div className="border-border/60 flex items-center justify-between gap-3 border-t pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Toggle
+                variant="outline"
+                size="sm"
+                pressed={uncategorizedOnly}
+                onPressedChange={(pressed) => {
+                  setUncategorizedOnly(pressed)
+                  table
+                    .getColumn("needsReview")
+                    ?.setFilterValue(pressed ? true : undefined)
+                }}
+                aria-label="Uncategorized only"
+              >
+                <Tag className="size-3.5" data-icon="inline-start" />
+                Needs review
+                {uncategorizedOnly ? (
+                  <X className="size-3.5" data-icon="inline-end" />
+                ) : null}
+              </Toggle>
+              <Toggle
+                variant="outline"
+                size="sm"
+                pressed={subscriptionsOnly}
+                onPressedChange={(pressed) => {
+                  setSubscriptionsOnly(pressed)
+                  table
+                    .getColumn("subscription")
+                    ?.setFilterValue(pressed ? true : undefined)
+                }}
+                aria-label="Subscriptions only"
+              >
+                <Repeat className="size-3.5" data-icon="inline-start" />
+                Subscriptions
+                {subscriptionsOnly ? (
+                  <X className="size-3.5" data-icon="inline-end" />
+                ) : null}
+              </Toggle>
+              {hasActiveFilters ? (
+                <Button variant="ghost" size="sm" onClick={resetFilters}>
+                  <RotateCcw className="size-3.5" />
+                  Reset filters
+                </Button>
+              ) : null}
+            </div>
+            <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
               {filteredCount} of {transactions.length} transactions
             </span>
           </div>

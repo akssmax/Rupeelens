@@ -1,16 +1,16 @@
 import { parseBankCsv } from "./banks"
 import {
   filterNewTransactions,
-  merchantKeyFromDescription,
-  getMerchantMemoryMap,
+  getMerchantMemoryIndex,
   saveImport,
 } from "./db"
 import { findCatalogMerchant } from "./merchants/catalog"
 import { extractMerchantName } from "./merchants/extract"
+import { lookupMerchantMemory } from "./merchants/memory"
 import type {
   BankId,
-  CategoryId,
   ColumnMapping,
+  MerchantMemory,
   ParsedRow,
   Statement,
   Transaction,
@@ -23,14 +23,14 @@ function uid(prefix: string): string {
 export function rowsToTransactions(
   rows: ParsedRow[],
   statementId: string,
-  memory: Map<string, CategoryId>,
+  memory: Map<string, MerchantMemory>,
 ): Transaction[] {
   return rows.map((row) => {
     const catalog = findCatalogMerchant(row.description)
     const merchant = catalog?.name || extractMerchantName(row.description)
-    const memoryHit =
-      memory.get(merchantKeyFromDescription(merchant)) ||
-      memory.get(merchantKeyFromDescription(row.description))
+    const memoryHit = catalog
+      ? undefined
+      : lookupMerchantMemory(row.description, merchant, memory)
 
     return {
       id: uid("tx"),
@@ -43,9 +43,12 @@ export function rowsToTransactions(
       amount: row.credit - row.debit,
       balance: row.balance,
       bankRef: row.bankRef,
-      categoryId: catalog?.categoryId ?? memoryHit ?? "uncategorized",
+      categoryId: catalog?.categoryId ?? memoryHit?.categoryId ?? "uncategorized",
       merchant,
-      isSubscription: catalog?.isSubscription ?? false,
+      isSubscription:
+        catalog?.isSubscription ??
+        memoryHit?.isSubscription ??
+        memoryHit?.categoryId === "subscriptions",
       confidence: catalog ? 0.95 : memoryHit ? 0.9 : undefined,
       raw: row.raw,
     }
@@ -84,7 +87,7 @@ export async function importCsvFile(params: {
     rowCount: parsed.rows.length,
   }
 
-  const memory = await getMerchantMemoryMap()
+  const memory = await getMerchantMemoryIndex()
   const candidates = rowsToTransactions(parsed.rows, statementId, memory)
   const unique = await filterNewTransactions(candidates)
   const skippedDuplicates = candidates.length - unique.length

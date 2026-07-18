@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { EmptyState } from "@/components/empty-state"
+import { MerchantAvatar } from "@/components/merchant-avatar"
 import { SubscriptionsPageSkeleton } from "@/components/page-skeletons"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -82,7 +83,15 @@ function SubscriptionsPage() {
               <TableBody>
                 {subscriptions.map((s) => (
                   <TableRow key={s.merchant}>
-                    <TableCell className="font-medium">{s.merchant}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <MerchantAvatar
+                          merchant={s.merchant}
+                          categoryId={s.categoryId}
+                        />
+                        <span className="font-medium">{s.merchant}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="secondary">
                         {CATEGORY_MAP[s.categoryId]?.name ?? s.categoryId}

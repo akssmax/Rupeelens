@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { motion } from "framer-motion"
-import { FileSpreadsheet, Loader2, Sparkles } from "lucide-react"
+import { FileSpreadsheet, Loader2, Upload } from "lucide-react"
 import Papa from "papaparse"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -27,12 +27,12 @@ import {
   listCsvHeaders,
   parseBankCsv,
 } from "@/lib/banks"
-import { runCategorization } from "@/lib/categorize-client"
 import { emitFinanceRefresh } from "@/lib/finance-events"
 import { bankLabel, formatDisplayDate, formatINR } from "@/lib/format"
 import { importCsvFile } from "@/lib/import"
 import type { BankId, ColumnMapping, ParseResult } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { useCategorizeJob } from "@/components/upload/categorize-job-context"
 
 const BANKS: BankId[] = [
   "axis",
@@ -64,6 +64,7 @@ export function CsvUploader({
   children?: (slots: CsvUploaderRenderProps) => ReactNode
 }) {
   const navigate = useNavigate()
+  const { startJob } = useCategorizeJob()
   const [dragOver, setDragOver] = useState(false)
   const [filename, setFilename] = useState("")
   const [text, setText] = useState("")
@@ -73,10 +74,8 @@ export function CsvUploader({
   const [mapping, setMapping] = useState<Partial<ColumnMapping>>({})
   const [showMapper, setShowMapper] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [categorizing, setCategorizing] = useState(false)
-  const [progress, setProgress] = useState(0)
 
-  const busy = importing || categorizing
+  const busy = importing
   const canImport = Boolean(preview && preview.rows.length > 0) && !busy
 
   const applyParse = useCallback(
@@ -122,7 +121,6 @@ export function CsvUploader({
     setHeaders([])
     setMapping({})
     setShowMapper(false)
-    setProgress(0)
   }
 
   const previewRows = useMemo(
@@ -177,31 +175,19 @@ export function CsvUploader({
             : ""),
       )
 
-      if (result.transactions.length > 0) {
-        setCategorizing(true)
-        setProgress(0)
-        const cat = await runCategorization(result.transactions, (p) => {
-          setProgress(p.total ? Math.round((p.done / p.total) * 100) : 100)
-        })
-        if (cat.errors.length) {
-          toast.warning(
-            `Categorized ${cat.updated} (rules ${cat.rules}, AI ${cat.llm}). ${cat.errors[0]}`,
-          )
-        } else {
-          toast.success(
-            `Auto-categorized ${cat.updated} (rules ${cat.rules}, memory ${cat.memory}, AI ${cat.llm})`,
-          )
-        }
-      }
-
       emitFinanceRefresh()
       onComplete?.()
       void navigate({ to: "/" })
+
+      if (result.transactions.length > 0) {
+        void startJob(result.transactions, {
+          label: `Categorizing ${filename || "statement"}`,
+        })
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     } finally {
       setImporting(false)
-      setCategorizing(false)
     }
   }
 
@@ -383,23 +369,17 @@ export function CsvUploader({
             </p>
           )}
 
-          {busy ? (
+          {importing ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="space-y-2"
             >
               <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                {categorizing ? (
-                  <Sparkles className="size-4" />
-                ) : (
-                  <Loader2 className="size-4 animate-spin" />
-                )}
-                {categorizing
-                  ? `Categorizing with Mistral… ${progress}%`
-                  : "Saving transactions…"}
+                <Loader2 className="size-4 animate-spin" />
+                Saving transactions…
               </div>
-              <Progress value={categorizing ? progress : 30} />
+              <Progress value={30} />
             </motion.div>
           ) : null}
         </div>
@@ -444,7 +424,7 @@ export function CsvUploader({
               Working…
             </>
           ) : (
-            "Confirm & categorize"
+            "Confirm import"
           )}
         </Button>
       </div>

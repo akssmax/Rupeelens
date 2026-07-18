@@ -1,5 +1,6 @@
 import { ShellChromeProvider } from "@/components/layout/shell-chrome"
 import { ThemeProvider } from "@/components/theme-provider"
+import { CategorizeJobProvider } from "@/components/upload/categorize-job-context"
 import { UploadProvider } from "@/components/upload/upload-context"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { FinanceProvider } from "@/hooks/use-finance-data"
@@ -17,7 +18,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <TooltipProvider>
         <ShellChromeProvider>
           <FinanceProvider>
-            <UploadProvider>{children}</UploadProvider>
+            <CategorizeJobProvider>
+              <UploadProvider>{children}</UploadProvider>
+            </CategorizeJobProvider>
           </FinanceProvider>
         </ShellChromeProvider>
       </TooltipProvider>
