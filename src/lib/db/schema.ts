@@ -34,6 +34,7 @@ export const appTransactions = pgTable("app_transactions", {
   balance: numeric("balance"),
   bankRef: text("bank_ref"),
   categoryId: text("category_id").notNull(),
+  categorySource: text("category_source"),
   merchant: text("merchant"),
   isSubscription: boolean("is_subscription"),
   confidence: numeric("confidence"),

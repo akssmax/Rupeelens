@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray, sql } from "drizzle-orm"
 import { requireServerSession } from "@/lib/auth/session.server"
 import {
   mergeCategories,
@@ -58,6 +58,8 @@ function rowToTransaction(row: typeof appTransactions.$inferSelect): Transaction
     balance: row.balance != null ? num(row.balance) : undefined,
     bankRef: row.bankRef ?? undefined,
     categoryId: row.categoryId as CategoryId,
+    categorySource:
+      (row.categorySource as Transaction["categorySource"]) ?? undefined,
     merchant: row.merchant ?? undefined,
     isSubscription: row.isSubscription ?? undefined,
     confidence: row.confidence != null ? num(row.confidence) : undefined,
@@ -199,6 +201,7 @@ export const saveCloudImport = createServerFn({ method: "POST" })
               balance: tx.balance != null ? String(tx.balance) : null,
               bankRef: tx.bankRef,
               categoryId: tx.categoryId,
+              categorySource: tx.categorySource ?? null,
               merchant: tx.merchant,
               isSubscription: tx.isSubscription,
               confidence: tx.confidence != null ? String(tx.confidence) : null,
@@ -255,6 +258,9 @@ export const updateCloudTransaction = createServerFn({ method: "POST" })
           : {}),
         ...(patch.bankRef !== undefined ? { bankRef: patch.bankRef } : {}),
         ...(patch.categoryId != null ? { categoryId: patch.categoryId } : {}),
+        ...(patch.categorySource !== undefined
+          ? { categorySource: patch.categorySource ?? null }
+          : {}),
         ...(patch.merchant !== undefined ? { merchant: patch.merchant } : {}),
         ...(patch.isSubscription !== undefined
           ? { isSubscription: patch.isSubscription }
@@ -281,48 +287,51 @@ export const updateCloudTransactionsBatch = createServerFn({ method: "POST" })
       data,
   )
   .handler(async ({ data }) => {
+    if (data.updates.length === 0) return
     const { user } = await requireServerSession()
     const db = getPgDb()
 
-    for (const { id, patch } of data.updates) {
-      await db
-        .update(appTransactions)
-        .set({
-          ...(patch.date != null ? { date: patch.date } : {}),
-          ...(patch.valueDate !== undefined
-            ? { valueDate: patch.valueDate }
-            : {}),
-          ...(patch.description != null
-            ? { description: patch.description }
-            : {}),
-          ...(patch.debit != null ? { debit: String(patch.debit) } : {}),
-          ...(patch.credit != null ? { credit: String(patch.credit) } : {}),
-          ...(patch.amount != null ? { amount: String(patch.amount) } : {}),
-          ...(patch.balance !== undefined
-            ? {
-                balance:
-                  patch.balance != null ? String(patch.balance) : null,
-              }
-            : {}),
-          ...(patch.bankRef !== undefined ? { bankRef: patch.bankRef } : {}),
-          ...(patch.categoryId != null
-            ? { categoryId: patch.categoryId }
-            : {}),
-          ...(patch.merchant !== undefined ? { merchant: patch.merchant } : {}),
-          ...(patch.isSubscription !== undefined
-            ? { isSubscription: patch.isSubscription }
-            : {}),
-          ...(patch.confidence !== undefined
-            ? {
-                confidence:
-                  patch.confidence != null ? String(patch.confidence) : null,
-              }
-            : {}),
-          ...(patch.raw !== undefined ? { raw: patch.raw ?? null } : {}),
-        })
-        .where(
-          and(eq(appTransactions.id, id), eq(appTransactions.userId, user.id)),
-        )
+    const buildPatch = (patch: Partial<Transaction>) => ({
+      ...(patch.date != null ? { date: patch.date } : {}),
+      ...(patch.valueDate !== undefined ? { valueDate: patch.valueDate } : {}),
+      ...(patch.description != null ? { description: patch.description } : {}),
+      ...(patch.debit != null ? { debit: String(patch.debit) } : {}),
+      ...(patch.credit != null ? { credit: String(patch.credit) } : {}),
+      ...(patch.amount != null ? { amount: String(patch.amount) } : {}),
+      ...(patch.balance !== undefined
+        ? { balance: patch.balance != null ? String(patch.balance) : null }
+        : {}),
+      ...(patch.bankRef !== undefined ? { bankRef: patch.bankRef } : {}),
+      ...(patch.categoryId != null ? { categoryId: patch.categoryId } : {}),
+      ...(patch.categorySource !== undefined
+        ? { categorySource: patch.categorySource ?? null }
+        : {}),
+      ...(patch.merchant !== undefined ? { merchant: patch.merchant } : {}),
+      ...(patch.isSubscription !== undefined
+        ? { isSubscription: patch.isSubscription }
+        : {}),
+      ...(patch.confidence !== undefined
+        ? {
+            confidence:
+              patch.confidence != null ? String(patch.confidence) : null,
+          }
+        : {}),
+      ...(patch.raw !== undefined ? { raw: patch.raw ?? null } : {}),
+    })
+
+    const chunkSize = 100
+    for (let i = 0; i < data.updates.length; i += chunkSize) {
+      const chunk = data.updates.slice(i, i + chunkSize)
+      await Promise.all(
+        chunk.map(({ id, patch }) =>
+          db
+            .update(appTransactions)
+            .set(buildPatch(patch))
+            .where(
+              and(eq(appTransactions.id, id), eq(appTransactions.userId, user.id)),
+            ),
+        ),
+      )
     }
   })
 
@@ -344,39 +353,79 @@ export const upsertCloudMerchantMemoryBatch = createServerFn({ method: "POST" })
     const db = getPgDb()
     const now = new Date()
 
-    for (const entry of data.entries) {
-      const existing = await db
-        .select()
-        .from(appMerchantMemory)
-        .where(
-          and(
-            eq(appMerchantMemory.userId, user.id),
-            eq(appMerchantMemory.merchantKey, entry.merchantKey),
-          ),
-        )
-        .limit(1)
+    const keys = [...new Set(data.entries.map((entry) => entry.merchantKey))]
+    const existingRows = keys.length
+      ? await db
+          .select()
+          .from(appMerchantMemory)
+          .where(
+            and(
+              eq(appMerchantMemory.userId, user.id),
+              inArray(appMerchantMemory.merchantKey, keys),
+            ),
+          )
+      : []
+    const existingByKey = new Map(
+      existingRows.map((row) => [row.merchantKey, row]),
+    )
 
+    const merged = new Map<
+      string,
+      {
+        merchantKey: string
+        categoryId: CategoryId
+        merchantName?: string
+        isSubscription?: boolean
+        source?: MerchantMemory["source"]
+      }
+    >()
+
+    for (const entry of data.entries) {
+      const existing = existingByKey.get(entry.merchantKey)
+      if (existing?.source === "user" && entry.source !== "user") continue
+
+      merged.set(entry.merchantKey, {
+        merchantKey: entry.merchantKey,
+        categoryId: entry.categoryId,
+        merchantName: entry.merchantName ?? existing?.merchantName ?? undefined,
+        isSubscription:
+          entry.isSubscription ?? existing?.isSubscription ?? undefined,
+        source:
+          existing?.source === "user"
+            ? "user"
+            : ((entry.source ??
+                (existing?.source as MerchantMemory["source"] | undefined)) ??
+              undefined),
+      })
+    }
+
+    const rows = [...merged.values()]
+    if (rows.length === 0) return
+
+    const chunkSize = 100
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize)
       await db
         .insert(appMerchantMemory)
-        .values({
-          userId: user.id,
-          merchantKey: entry.merchantKey,
-          categoryId: entry.categoryId,
-          updatedAt: now,
-          merchantName: entry.merchantName ?? existing[0]?.merchantName,
-          isSubscription:
-            entry.isSubscription ?? existing[0]?.isSubscription ?? undefined,
-          source: entry.source ?? existing[0]?.source ?? undefined,
-        })
+        .values(
+          chunk.map((entry) => ({
+            userId: user.id,
+            merchantKey: entry.merchantKey,
+            categoryId: entry.categoryId,
+            updatedAt: now,
+            merchantName: entry.merchantName,
+            isSubscription: entry.isSubscription,
+            source: entry.source,
+          })),
+        )
         .onConflictDoUpdate({
           target: [appMerchantMemory.userId, appMerchantMemory.merchantKey],
           set: {
-            categoryId: entry.categoryId,
+            categoryId: sql`CASE WHEN ${appMerchantMemory.source} = 'user' THEN ${appMerchantMemory.categoryId} ELSE excluded.category_id END`,
             updatedAt: now,
-            merchantName: entry.merchantName ?? existing[0]?.merchantName,
-            isSubscription:
-              entry.isSubscription ?? existing[0]?.isSubscription ?? undefined,
-            source: entry.source ?? existing[0]?.source ?? undefined,
+            merchantName: sql`COALESCE(excluded.merchant_name, ${appMerchantMemory.merchantName})`,
+            isSubscription: sql`COALESCE(excluded.is_subscription, ${appMerchantMemory.isSubscription})`,
+            source: sql`CASE WHEN ${appMerchantMemory.source} = 'user' THEN ${appMerchantMemory.source} ELSE excluded.source END`,
           },
         })
     }

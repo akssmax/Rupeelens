@@ -244,13 +244,17 @@ export async function putMerchantMemoryBatch(
   const now = new Date().toISOString()
   for (const entry of entries) {
     const existing = await tx.store.get(entry.merchantKey)
+    if (existing?.source === "user" && entry.source !== "user") continue
     await tx.store.put({
       merchantKey: entry.merchantKey,
       categoryId: entry.categoryId,
       updatedAt: now,
       merchantName: entry.merchantName ?? existing?.merchantName,
       isSubscription: entry.isSubscription ?? existing?.isSubscription,
-      source: entry.source ?? existing?.source,
+      source:
+        existing?.source === "user"
+          ? "user"
+          : (entry.source ?? existing?.source),
     })
   }
   await tx.done

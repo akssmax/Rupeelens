@@ -1,17 +1,25 @@
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
-import { getISOWeek, getISOWeekYear, parseISO } from "date-fns"
 import { DrillDownPageHeader } from "@/components/drill-down-page-header"
 import { EmptyState } from "@/components/empty-state"
 import { TransactionsPageSkeleton } from "@/components/page-skeletons"
 import { TransactionPageActions } from "@/components/transactions/transaction-page-actions"
-import { TransactionTable } from "@/components/transactions/transaction-table"
+import {
+  TransactionTable,
+  filterStateEquals,
+  type TransactionGroupBy,
+  type TransactionTableFilterState,
+} from "@/components/transactions/transaction-table"
 import { useCategorizeJob } from "@/components/upload/categorize-job-context"
 import { useFinanceData } from "@/hooks/use-finance-data"
 import { filterByMonth } from "@/lib/analytics"
 import { resolveCategoryName } from "@/lib/categories"
 import { filterTransactionsForExport } from "@/lib/export-transactions"
 import { formatDisplayDate } from "@/lib/format"
+import {
+  countUncategorized,
+  filterByWeek,
+} from "@/lib/transactions/table-logic"
 import type { CategoryId } from "@/lib/types"
 
 type TransactionsSearch = {
@@ -19,16 +27,6 @@ type TransactionsSearch = {
   category?: CategoryId
   date?: string
   week?: string
-}
-
-function filterByWeek(txs: ReturnType<typeof filterByMonth>, weekKey: string) {
-  return txs.filter((t) => {
-    const d = parseISO(t.date)
-    const week = getISOWeek(d)
-    const year = getISOWeekYear(d)
-    const key = `${year}-W${String(week).padStart(2, "0")}`
-    return key === weekKey
-  })
 }
 
 export const Route = createFileRoute("/transactions")({
@@ -67,6 +65,23 @@ function TransactionsPage() {
   } = useFinanceData()
   const { job, startJob } = useCategorizeJob()
   const running = job.active
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [groupBy, setGroupBy] = useState<TransactionGroupBy>("none")
+  const [filterState, setFilterState] = useState<TransactionTableFilterState>({
+    active: false,
+    count: 0,
+    labels: [],
+    filteredCount: 0,
+    totalCount: 0,
+  })
+  const handleActiveFiltersChange = useCallback(
+    (state: TransactionTableFilterState) => {
+      setFilterState((prev) =>
+        filterStateEquals(prev, state) ? prev : state,
+      )
+    },
+    [],
+  )
 
   const monthTransactions = useMemo(() => {
     let rows = month ? filterByMonth(transactions, month) : transactions
@@ -100,10 +115,7 @@ function TransactionsPage() {
   const isFilteredView = Boolean(filterHint)
 
   const uncategorizedCount = useMemo(
-    () =>
-      transactions.filter(
-        (t) => t.categoryId === "uncategorized" || !t.merchant,
-      ).length,
+    () => countUncategorized(transactions),
     [transactions],
   )
 
@@ -151,6 +163,11 @@ function TransactionsPage() {
       categories={categories}
       exportTitle={exportTitle}
       exportFilename={exportFilename}
+      filtersOpen={filtersOpen}
+      onFiltersOpenChange={setFiltersOpen}
+      activeFilterCount={filterState.count}
+      groupBy={groupBy}
+      onGroupByChange={setGroupBy}
     />
   )
 
@@ -163,14 +180,16 @@ function TransactionsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
       {isFilteredView ? (
-        <DrillDownPageHeader
-          title={filterHint!}
-          actions={headerActions}
-        />
+        <div className="shrink-0">
+          <DrillDownPageHeader
+            title={filterHint!}
+            actions={headerActions}
+          />
+        </div>
       ) : (
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="font-heading text-2xl font-semibold tracking-tight">
               Transactions
@@ -191,6 +210,10 @@ function TransactionsPage() {
         onCreateCategory={createCategory}
         toolbar="full"
         initialFilters={initialFilters}
+        filtersOpen={filtersOpen}
+        onActiveFiltersChange={handleActiveFiltersChange}
+        groupBy={groupBy}
+        onGroupByChange={setGroupBy}
       />
     </div>
   )

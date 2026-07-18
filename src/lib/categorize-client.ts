@@ -9,8 +9,13 @@ import {
   extractMerchantName,
   needsLlm,
 } from "./merchants/pipeline"
-import { rememberMerchantMapping } from "./merchants/memory"
-import type { CategorizeInput, CategorizeResult, Transaction } from "./types"
+import { rememberMerchantMappingsBatch, lookupMerchantMemory } from "./merchants/memory"
+import type {
+  CategorizeInput,
+  CategorizeResult,
+  MerchantMemory,
+  Transaction,
+} from "./types"
 import { categorizeTransactions } from "@/server/categorize"
 
 const BATCH_SIZE = 40
@@ -27,6 +32,50 @@ export type CategorizeOptions = {
   force?: boolean
   /** Called after each phase or LLM batch so the UI can refresh incrementally. */
   onPhaseComplete?: () => void
+}
+
+function isUserLocked(
+  t: Transaction,
+  memoryIndex?: Map<string, MerchantMemory>,
+) {
+  if (t.categorySource === "user") return true
+  if (!memoryIndex) return false
+  const merchant = t.merchant || extractMerchantName(t.description)
+  const memoryHit = lookupMerchantMemory(t.description, merchant, memoryIndex)
+  return (
+    memoryHit?.source === "user" && memoryHit.categoryId === t.categoryId
+  )
+}
+
+function buildScope(
+  transactions: Transaction[],
+  force?: boolean,
+  memoryIndex?: Map<string, MerchantMemory>,
+) {
+  if (force) {
+    return transactions.filter((t) => !isUserLocked(t, memoryIndex))
+  }
+  return transactions.filter(
+    (t) => t.categoryId === "uncategorized" || !t.merchant,
+  )
+}
+
+function patchFromHit(
+  hit: {
+    categoryId: Transaction["categoryId"]
+    merchant: string
+    isSubscription: boolean
+    confidence: number
+    source: "rules" | "memory" | "llm"
+  },
+): Partial<Transaction> {
+  return {
+    categoryId: hit.categoryId,
+    merchant: hit.merchant,
+    isSubscription: hit.isSubscription,
+    confidence: hit.confidence,
+    categorySource: hit.source,
+  }
 }
 
 /**
@@ -46,12 +95,10 @@ export async function runCategorization(
   llm: number
   errors: string[]
 }> {
-  const scope = options?.force
-    ? transactions
-    : transactions.filter(
-        (t) => t.categoryId === "uncategorized" || !t.merchant,
-      )
-
+  const memoryIndex = options?.force
+    ? await getMerchantMemoryIndex()
+    : undefined
+  const scope = buildScope(transactions, options?.force, memoryIndex)
   const total = scope.length
   if (total === 0) {
     onProgress?.({
@@ -69,6 +116,7 @@ export async function runCategorization(
   let llm = 0
   const errors: string[] = []
   const resolved = new Set<string>()
+  const descriptionsById = new Map(scope.map((t) => [t.id, t.description]))
 
   const refresh = () => options?.onPhaseComplete?.()
 
@@ -84,25 +132,21 @@ export async function runCategorization(
     await updateTransactionsBatch(
       ruleHits.map((h) => ({
         id: h.id,
-        patch: {
-          categoryId: h.categoryId,
-          merchant: h.merchant,
-          isSubscription: h.isSubscription,
-          confidence: h.confidence,
-        },
+        patch: patchFromHit(h),
       })),
     )
-    for (const h of ruleHits) {
-      resolved.add(h.id)
-      const tx = scope.find((t) => t.id === h.id)
-      await rememberMerchantMapping({
-        merchant: h.merchant,
-        description: tx?.description ?? h.merchant,
-        categoryId: h.categoryId,
-        isSubscription: h.isSubscription,
-        source: "rules",
-      })
+    if (!options?.force) {
+      await rememberMerchantMappingsBatch(
+        ruleHits.map((h) => ({
+          merchant: h.merchant,
+          description: descriptionsById.get(h.id) ?? h.merchant,
+          categoryId: h.categoryId,
+          isSubscription: h.isSubscription,
+          source: "rules" as const,
+        })),
+      )
     }
+    for (const h of ruleHits) resolved.add(h.id)
     rules = ruleHits.length
     updated += rules
     refresh()
@@ -121,18 +165,18 @@ export async function runCategorization(
     total,
     label: "Applying learned merchants…",
   })
-  const memoryIndex = await getMerchantMemoryIndex()
-  const memoryHits = applyMemoryCategorization(scope, memoryIndex, resolved)
+  const memoryIndexForRules =
+    memoryIndex ?? (await getMerchantMemoryIndex())
+  const memoryHits = applyMemoryCategorization(
+    scope,
+    memoryIndexForRules,
+    resolved,
+  )
   if (memoryHits.length) {
     await updateTransactionsBatch(
       memoryHits.map((h) => ({
         id: h.id,
-        patch: {
-          categoryId: h.categoryId,
-          merchant: h.merchant,
-          isSubscription: h.isSubscription,
-          confidence: h.confidence,
-        },
+        patch: patchFromHit(h),
       })),
     )
     for (const h of memoryHits) resolved.add(h.id)
@@ -175,6 +219,13 @@ export async function runCategorization(
       })
       const byId = new Map(results.map((r: CategorizeResult) => [r.id, r]))
       const updates: Array<{ id: string; patch: Partial<Transaction> }> = []
+      const memoryItems: Array<{
+        merchant: string
+        description: string
+        categoryId: Transaction["categoryId"]
+        isSubscription?: boolean
+        source: "llm"
+      }> = []
 
       for (const t of slice) {
         const r = byId.get(t.id)
@@ -188,10 +239,11 @@ export async function runCategorization(
             merchant,
             isSubscription: r.isSubscription ?? false,
             confidence,
+            categorySource: "llm",
           },
         })
         if (confidence >= MEMORY_CONFIDENCE_THRESHOLD && merchant) {
-          await rememberMerchantMapping({
+          memoryItems.push({
             merchant,
             description: t.description,
             categoryId: r.category,
@@ -202,6 +254,9 @@ export async function runCategorization(
         resolved.add(t.id)
       }
 
+      if (memoryItems.length) {
+        await rememberMerchantMappingsBatch(memoryItems)
+      }
       await updateTransactionsBatch(updates)
       llm += updates.length
       updated += updates.length

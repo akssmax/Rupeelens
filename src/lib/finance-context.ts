@@ -6,8 +6,65 @@ import {
   monthlySummary,
   weeklySpends,
 } from "./analytics"
+import { mergeCategories, SEED_CATEGORIES } from "./categories"
 import { formatINR, formatMonthLabel } from "./format"
-import type { Transaction } from "./types"
+import { extractMerchantName } from "./merchants/extract"
+import type { Category, Transaction } from "./types"
+
+export function isNeedsReviewTransaction(tx: Transaction): boolean {
+  return tx.categoryId === "uncategorized" || !tx.merchant
+}
+
+/** Compact list of uncategorized merchants for chat categorization intent parsing. */
+export function buildUncategorizedMerchantsContext(
+  transactions: Transaction[],
+  categories: Category[] = [],
+): string {
+  const uncategorized = transactions.filter(isNeedsReviewTransaction)
+  if (uncategorized.length === 0) {
+    return "No uncategorized transactions."
+  }
+
+  const byMerchant = new Map<
+    string,
+    { count: number; total: number; lastDate: string }
+  >()
+
+  for (const tx of uncategorized) {
+    const merchant = tx.merchant || extractMerchantName(tx.description) || "Unknown"
+    const prev = byMerchant.get(merchant) ?? {
+      count: 0,
+      total: 0,
+      lastDate: "",
+    }
+    prev.count += 1
+    prev.total += tx.debit > 0 ? tx.debit : tx.credit
+    if (tx.date > prev.lastDate) prev.lastDate = tx.date
+    byMerchant.set(merchant, prev)
+  }
+
+  const merchantLines = [...byMerchant.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .map(
+      ([merchant, stats]) =>
+        `${merchant} | ${stats.count} txns | ${formatINR(stats.total)} | last ${stats.lastDate}`,
+    )
+
+  const allCategories = categories.length
+    ? mergeCategories(categories.filter((c) => c.custom))
+    : SEED_CATEGORIES
+  const categoryLines = allCategories
+    .filter((c) => c.id !== "uncategorized")
+    .map((c) => `${c.id}: ${c.name}`)
+
+  return [
+    `Uncategorized transactions: ${uncategorized.length}`,
+    "## Merchants needing review",
+    ...merchantLines,
+    "## Available categories",
+    ...categoryLines,
+  ].join("\n")
+}
 
 /** Compact snapshot sent with AI chat (no raw CSV / PII headers). */
 export function buildFinanceContext(transactions: Transaction[]): string {

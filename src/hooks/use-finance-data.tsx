@@ -26,10 +26,16 @@ import {
   hasLocalTransactions,
   setFinanceStorageMode,
   updateTransaction,
+  updateTransactionsBatch,
 } from "@/lib/finance/storage"
-import { onFinanceRefresh } from "@/lib/finance-events"
+import { emitFinanceRefresh, onFinanceRefresh } from "@/lib/finance-events"
+import {
+  buildCategorizationUpdates,
+  type ApplyMerchantCategorizationInput,
+  type ApplyMerchantCategorizationResult,
+} from "@/lib/chat-categorize"
 import { sortCategories } from "@/lib/categories"
-import { rememberMerchantMapping } from "@/lib/merchants/memory"
+import { rememberMerchantMapping, rememberMerchantMappingsBatch } from "@/lib/merchants/memory"
 import type { Category, CategoryId, Statement, Transaction } from "@/lib/types"
 
 type FinanceContextValue = {
@@ -56,6 +62,9 @@ type FinanceContextValue = {
     categoryId: CategoryId,
     merchant?: string,
   ) => Promise<void>
+  applyMerchantCategorizations: (
+    previews: ApplyMerchantCategorizationInput[],
+  ) => Promise<ApplyMerchantCategorizationResult>
   createCategory: (name: string, color?: string) => Promise<Category | null>
   isSignedIn: boolean
   isCloudSynced: boolean
@@ -199,10 +208,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       setTransactions((prev) => {
         const tx = prev.find((t) => t.id === txId)
         if (tx) memoryTarget = tx
-        return prev.map((t) => (t.id === txId ? { ...t, categoryId } : t))
+        return prev.map((t) =>
+          t.id === txId ? { ...t, categoryId, categorySource: "user" } : t,
+        )
       })
       try {
-        await updateTransaction(txId, { categoryId })
+        await updateTransaction(txId, {
+          categoryId,
+          categorySource: "user",
+        })
         if (memoryTarget) {
           const merchantName =
             merchant || memoryTarget.merchant || memoryTarget.description
@@ -216,6 +230,74 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         await refresh()
+      }
+    },
+    [refresh],
+  )
+
+  const applyMerchantCategorizations = useCallback(
+    async (
+      previews: ApplyMerchantCategorizationInput[],
+    ): Promise<ApplyMerchantCategorizationResult> => {
+      const applicable = previews.filter((preview) => preview.matched.length > 0)
+      if (applicable.length === 0) {
+        return { updated: 0, merchants: [] }
+      }
+
+      const updatesById = new Map<
+        string,
+        { categoryId: CategoryId; categorySource: "user" }
+      >()
+      const memoryItems: Array<{
+        merchant: string
+        description: string
+        categoryId: CategoryId
+        isSubscription?: boolean
+        source: "user"
+      }> = []
+
+      for (const preview of applicable) {
+        const { updates, memoryItems: items } = buildCategorizationUpdates(
+          preview.matched,
+          preview.categoryId,
+        )
+        for (const update of updates) {
+          updatesById.set(update.id, {
+            categoryId: update.patch.categoryId,
+            categorySource: "user",
+          })
+        }
+        memoryItems.push(...items)
+      }
+
+      const updateEntries = [...updatesById.entries()]
+      setTransactions((prev) =>
+        prev.map((tx) => {
+          const patch = updatesById.get(tx.id)
+          return patch ? { ...tx, ...patch } : tx
+        }),
+      )
+
+      try {
+        await updateTransactionsBatch(
+          updateEntries.map(([id, patch]) => ({ id, patch })),
+        )
+        await rememberMerchantMappingsBatch(memoryItems)
+        emitFinanceRefresh()
+
+        const merchants = applicable.map((preview) => ({
+          merchantQuery: preview.merchantQuery,
+          categoryName: preview.categoryName,
+          count: preview.matched.length,
+        }))
+
+        return {
+          updated: updateEntries.length,
+          merchants,
+        }
+      } catch (e) {
+        await refresh()
+        throw e
       }
     },
     [refresh],
@@ -262,6 +344,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       subscriptions,
       refresh,
       changeCategory,
+      applyMerchantCategorizations,
       createCategory,
       isSignedIn,
       isCloudSynced: isSignedIn,
@@ -285,6 +368,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       subscriptions,
       refresh,
       changeCategory,
+      applyMerchantCategorizations,
       createCategory,
       isSignedIn,
     ],

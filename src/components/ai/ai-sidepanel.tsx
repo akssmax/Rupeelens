@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useState } from "react"
+import { Fragment, useCallback, useEffect, useState } from "react"
 import {
   CopyIcon,
   RefreshCcwIcon,
@@ -37,20 +37,58 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Marker } from "@/components/ui/marker"
+import { CategorizationConfirmCard } from "@/components/ai/categorization-confirm-card"
 import { useFinanceData } from "@/hooks/use-finance-data"
-import { buildFinanceContext } from "@/lib/finance-context"
+import {
+  formatPreviewSummary,
+  looksLikeCategorizationRequest,
+  previewCategorizationActions,
+  type CategorizationPreview,
+} from "@/lib/chat-categorize"
+import {
+  buildFinanceContext,
+  buildUncategorizedMerchantsContext,
+} from "@/lib/finance-context"
 import { chatWithFinance, type ChatMessage } from "@/server/chat"
+import { parseChatCategorization } from "@/server/chat-categorize"
 import { cn } from "@/lib/utils"
 
-type UiMessage = ChatMessage & { id: string }
+type UiMessage = ChatMessage & {
+  id: string
+  categorization?: {
+    previews: CategorizationPreview[]
+    status: "pending" | "confirmed" | "cancelled"
+  }
+}
 type Feedback = "up" | "down"
 
-const SUGGESTIONS = [
+const SUGGESTION_POOL = [
   "Where did I spend the most this month?",
-  "List my subscriptions and monthly cost",
+  "What are my top five merchants by spend?",
+  "List my subscriptions and total monthly cost",
   "How much did I spend on food delivery?",
-  "Summarize my Safe Gold and investment spends",
+  "Compare this month's spending to last month",
+  "Which categories increased the most recently?",
+  "Summarize my rent and utility payments",
+  "What's my net income minus expenses this month?",
+  "Show my largest single debit this month",
+  "How much went to investments or gold buys?",
+  "Any recurring charges I should review?",
+  "Break down my weekend vs weekday spending",
+  "Which uncategorized transactions need attention?",
+  "Bistro belongs to food — update uncategorized transactions",
+  "How much did I spend on UPI person-to-person transfers?",
+  "What did I spend on travel and commute?",
 ]
+
+function pickRandomSuggestions(count: number): string[] {
+  const pool = [...SUGGESTION_POOL]
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[pool[i], pool[j]] = [pool[j], pool[i]]
+  }
+  return pool.slice(0, count)
+}
 
 export function AiSidepanel({
   open,
@@ -59,14 +97,28 @@ export function AiSidepanel({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { transactionCount, getTransactionsSnapshot } = useFinanceData()
+  const {
+    transactionCount,
+    getTransactionsSnapshot,
+    categories,
+    applyMerchantCategorizations,
+  } = useFinanceData()
   const [messages, setMessages] = useState<UiMessage[]>([])
   const [feedback, setFeedback] = useState<Record<string, Feedback | undefined>>(
     {},
   )
   const [busy, setBusy] = useState(false)
+  const [suggestions, setSuggestions] = useState(() =>
+    pickRandomSuggestions(4),
+  )
 
   const canChat = transactionCount > 0
+
+  useEffect(() => {
+    if (open && messages.length === 0) {
+      setSuggestions(pickRandomSuggestions(4))
+    }
+  }, [open, messages.length])
 
   const send = useCallback(
     async (
@@ -99,6 +151,65 @@ export function AiSidepanel({
             "Import a bank CSV first so I can answer with your data.",
           )
         }
+
+        if (looksLikeCategorizationRequest(trimmed)) {
+          const uncategorizedContext = buildUncategorizedMerchantsContext(
+            transactions,
+            categories,
+          )
+          const categoryIds = categories.map((category) => category.id)
+          const parsed = await parseChatCategorization({
+            data: {
+              message: trimmed,
+              recentMessages: next.map(({ role, content }) => ({
+                role,
+                content,
+              })),
+              uncategorizedContext,
+              categoryIds,
+            },
+          })
+
+          if (parsed.intent === "categorize" && parsed.actions.length > 0) {
+            const previews = previewCategorizationActions(
+              transactions,
+              parsed.actions,
+            )
+            const hasMatches = previews.some(
+              (preview) => preview.matched.length > 0,
+            )
+            const summary = formatPreviewSummary(previews)
+            const reply = hasMatches
+              ? `${parsed.reply}\n\n${summary}\n\nConfirm below to update uncategorized transactions.`
+              : parsed.reply
+
+            setMessages((prev) => [
+              ...(appendUser ? prev : base),
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: reply,
+                categorization: hasMatches
+                  ? { previews, status: "pending" }
+                  : undefined,
+              },
+            ])
+            return
+          }
+
+          if (parsed.intent === "none" && parsed.reply) {
+            setMessages((prev) => [
+              ...(appendUser ? prev : base),
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: parsed.reply,
+              },
+            ])
+            return
+          }
+        }
+
         const financeContext = buildFinanceContext(transactions)
         const { reply } = await chatWithFinance({
           data: {
@@ -125,8 +236,84 @@ export function AiSidepanel({
         setBusy(false)
       }
     },
-    [busy, getTransactionsSnapshot, messages],
+    [busy, categories, getTransactionsSnapshot, messages],
   )
+
+  const handleConfirmCategorization = useCallback(
+    async (messageId: string, previews: CategorizationPreview[]) => {
+      setBusy(true)
+      try {
+        const result = await applyMerchantCategorizations(previews)
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === messageId && message.categorization
+              ? {
+                  ...message,
+                  categorization: {
+                    ...message.categorization,
+                    status: "confirmed",
+                  },
+                }
+              : message,
+          ),
+        )
+
+        const summary =
+          result.merchants.length > 0
+            ? result.merchants
+                .map(
+                  (item) =>
+                    `Updated ${item.count} ${item.merchantQuery} transaction${item.count === 1 ? "" : "s"} to ${item.categoryName}.`,
+                )
+                .join(" ")
+            : "No transactions were updated."
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: summary,
+          },
+        ])
+        toast.success(
+          result.updated > 0
+            ? `Updated ${result.updated} transaction${result.updated === 1 ? "" : "s"}`
+            : "No transactions updated",
+        )
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        toast.error(msg)
+      } finally {
+        setBusy(false)
+      }
+    },
+    [applyMerchantCategorizations],
+  )
+
+  const handleCancelCategorization = useCallback((messageId: string) => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === messageId && message.categorization
+          ? {
+              ...message,
+              categorization: {
+                ...message.categorization,
+                status: "cancelled",
+              },
+            }
+          : message,
+      ),
+    )
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "Category update cancelled.",
+      },
+    ])
+  }, [])
 
   const handleSubmit = (message: PromptInputMessage) => {
     if (message.text.trim()) {
@@ -184,27 +371,38 @@ export function AiSidepanel({
           {empty ? (
             <ConversationEmptyState
               className="flex-1"
-              title="Ask your money anything"
+              title="What would you like to know?"
               description={
                 canChat
-                  ? `${transactionCount} transactions loaded. Try a prompt below.`
-                  : "Upload a bank CSV first, then come back to chat."
+                  ? `${transactionCount.toLocaleString()} transactions in context — pick a starter or ask your own.`
+                  : "Import a bank statement first, then ask about your spends."
               }
-              icon={<SparklesIcon className="size-5" />}
+              icon={
+                <span className="bg-primary/15 text-primary flex size-11 items-center justify-center rounded-xl">
+                  <SparklesIcon className="size-5" />
+                </span>
+              }
             >
-              <div className="mt-4 flex max-w-sm flex-col gap-2">
-                {SUGGESTIONS.map((s) => (
-                  <Button
-                    key={s}
-                    variant="outline"
-                    className="h-auto justify-start whitespace-normal px-3 py-2 text-left text-xs"
-                    disabled={!canChat || busy}
-                    onClick={() => void send(s)}
-                  >
-                    {s}
-                  </Button>
-                ))}
-              </div>
+              {canChat ? (
+                <div className="mt-5 w-full max-w-sm space-y-2 text-left">
+                  <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                    Suggested for you
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {suggestions.map((s) => (
+                      <Button
+                        key={s}
+                        variant="outline"
+                        className="hover:bg-muted/60 h-auto justify-start whitespace-normal px-3 py-2.5 text-left text-xs leading-snug"
+                        disabled={busy}
+                        onClick={() => void send(s)}
+                      >
+                        {s}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </ConversationEmptyState>
           ) : (
             <Conversation className="min-h-0 flex-1">
@@ -220,7 +418,25 @@ export function AiSidepanel({
                       <Message from={message.role}>
                         <MessageContent>
                           {isAssistant ? (
-                            <MessageResponse>{message.content}</MessageResponse>
+                            <>
+                              <MessageResponse>{message.content}</MessageResponse>
+                              {message.categorization ? (
+                                <CategorizationConfirmCard
+                                  previews={message.categorization.previews}
+                                  status={message.categorization.status}
+                                  busy={busy}
+                                  onConfirm={() =>
+                                    void handleConfirmCategorization(
+                                      message.id,
+                                      message.categorization!.previews,
+                                    )
+                                  }
+                                  onCancel={() =>
+                                    handleCancelCategorization(message.id)
+                                  }
+                                />
+                              ) : null}
+                            </>
                           ) : (
                             <p className="whitespace-pre-wrap">
                               {message.content}

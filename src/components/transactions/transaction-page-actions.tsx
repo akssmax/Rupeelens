@@ -1,5 +1,7 @@
 import {
   FileDown,
+  Group,
+  ListFilter,
   Loader2,
   MoreHorizontal,
   Sparkles,
@@ -10,11 +12,19 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { downloadTransactionsCsv } from "@/lib/export-transactions"
 import type { Category, Transaction } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import {
+  TRANSACTION_GROUP_OPTIONS,
+  type TransactionGroupBy,
+} from "@/components/transactions/transaction-table"
 
 export function TransactionPageActions({
   months,
@@ -27,6 +37,11 @@ export function TransactionPageActions({
   categories,
   exportTitle,
   exportFilename,
+  filtersOpen,
+  onFiltersOpenChange,
+  activeFilterCount = 0,
+  groupBy = "none",
+  onGroupByChange,
 }: {
   months: string[]
   month: string
@@ -38,6 +53,11 @@ export function TransactionPageActions({
   categories: Category[]
   exportTitle: string
   exportFilename: string
+  filtersOpen?: boolean
+  onFiltersOpenChange?: (open: boolean) => void
+  activeFilterCount?: number
+  groupBy?: TransactionGroupBy
+  onGroupByChange?: (groupBy: TransactionGroupBy) => void
 }) {
   const needsCategorize = uncategorizedCount > 0
 
@@ -56,9 +76,59 @@ export function TransactionPageActions({
     })
   }
 
+  const filtersActive = Boolean(filtersOpen || activeFilterCount > 0)
+  const groupingActive = groupBy !== "none"
+
   return (
-    <>
+    <div className="flex flex-wrap items-center gap-2">
       <MonthSelect months={months} value={month} onChange={onMonthChange} />
+      {onFiltersOpenChange ? (
+        <Button
+          variant={filtersOpen ? "secondary" : "outline"}
+          size="icon-sm"
+          aria-label={filtersOpen ? "Hide filters" : "Show filters"}
+          aria-pressed={filtersOpen}
+          onClick={() => onFiltersOpenChange(!filtersOpen)}
+          className={cn("relative", filtersActive && "border-primary")}
+        >
+          <ListFilter className="size-4" />
+          {activeFilterCount > 0 ? (
+            <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full text-[10px] font-medium">
+              {activeFilterCount}
+            </span>
+          ) : null}
+        </Button>
+      ) : null}
+      {onGroupByChange ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant={groupingActive ? "secondary" : "outline"}
+              size="icon-sm"
+              aria-label="Group transactions"
+              aria-pressed={groupingActive}
+              className={cn(groupingActive && "border-primary")}
+            >
+              <Group className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>Group by</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={groupBy}
+              onValueChange={(value) =>
+                onGroupByChange(value as TransactionGroupBy)
+              }
+            >
+              {TRANSACTION_GROUP_OPTIONS.map((option) => (
+                <DropdownMenuRadioItem key={option.value} value={option.value}>
+                  {option.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
       {needsCategorize ? (
         <Button
           onClick={() => onAutoCategorize(false)}
@@ -113,6 +183,6 @@ export function TransactionPageActions({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-    </>
+    </div>
   )
 }

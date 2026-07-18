@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite"
 import { devtools } from "@tanstack/devtools-vite"
 import { tanstackStart } from "@tanstack/react-start/plugin/vite"
@@ -14,6 +15,11 @@ const config = defineConfig({
     nitro(),
     viteReact(),
   ],
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+    exclude: ["src/**/*.perf.test.ts"],
+  },
 })
 
 export default config

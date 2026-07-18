@@ -43,6 +43,8 @@ export interface Transaction {
   balance?: number
   bankRef?: string
   categoryId: CategoryId
+  /** Set to `user` when the category was manually chosen; skipped on re-categorize. */
+  categorySource?: "user" | "rules" | "memory" | "llm"
   merchant?: string
   isSubscription?: boolean
   confidence?: number

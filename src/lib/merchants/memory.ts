@@ -52,6 +52,44 @@ export function lookupMerchantMemory(
   return undefined
 }
 
+export async function rememberMerchantMappingsBatch(
+  items: Array<{
+    merchant: string
+    description: string
+    categoryId: CategoryId
+    isSubscription?: boolean
+    source: NonNullable<MerchantMemorySource>
+  }>,
+): Promise<void> {
+  if (items.length === 0) return
+
+  const entries = new Map<
+    string,
+    {
+      merchantKey: string
+      categoryId: CategoryId
+      merchantName?: string
+      isSubscription?: boolean
+      source: NonNullable<MerchantMemorySource>
+    }
+  >()
+
+  for (const item of items) {
+    const keys = memoryKeysForTransaction(item.merchant, item.description)
+    for (const merchantKey of keys) {
+      entries.set(merchantKey, {
+        merchantKey,
+        categoryId: item.categoryId,
+        merchantName: item.merchant,
+        isSubscription: item.isSubscription,
+        source: item.source,
+      })
+    }
+  }
+
+  await putMerchantMemoryBatch([...entries.values()])
+}
+
 export async function rememberMerchantMapping(params: {
   merchant: string
   description: string
@@ -59,14 +97,5 @@ export async function rememberMerchantMapping(params: {
   isSubscription?: boolean
   source: NonNullable<MerchantMemorySource>
 }): Promise<void> {
-  const keys = memoryKeysForTransaction(params.merchant, params.description)
-  await putMerchantMemoryBatch(
-    keys.map((merchantKey) => ({
-      merchantKey,
-      categoryId: params.categoryId,
-      merchantName: params.merchant,
-      isSubscription: params.isSubscription,
-      source: params.source,
-    })),
-  )
+  await rememberMerchantMappingsBatch([params])
 }

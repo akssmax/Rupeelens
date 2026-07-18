@@ -62,6 +62,7 @@ export const migrateLocalDataToCloud = createServerFn({ method: "POST" })
               balance: tx.balance != null ? String(tx.balance) : null,
               bankRef: tx.bankRef,
               categoryId: tx.categoryId,
+              categorySource: tx.categorySource ?? null,
               merchant: tx.merchant,
               isSubscription: tx.isSubscription,
               confidence: tx.confidence != null ? String(tx.confidence) : null,
