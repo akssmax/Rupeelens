@@ -154,9 +154,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    void hasLocalTransactions().then((hasData) => {
-      if (!cancelled) setHasLocalData(hasData)
-    })
+    const probeLocalData = () => {
+      void hasLocalTransactions().then((hasData) => {
+        if (!cancelled) setHasLocalData(hasData)
+      })
+    }
+    probeLocalData()
     return () => {
       cancelled = true
     }
@@ -167,15 +170,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setFinanceStorageMode(isSignedIn ? "cloud" : "local")
     setLoading(true)
     void refresh()
+    void hasLocalTransactions().then(setHasLocalData)
   }, [isSignedIn, isPending, refresh])
 
-  useEffect(() => onFinanceRefresh(() => void refresh()), [refresh])
-
-  useEffect(() => {
-    if (transactions.length > 0) {
-      setHasLocalData(true)
-    }
-  }, [transactions.length])
+  useEffect(
+    () =>
+      onFinanceRefresh(() => {
+        void refresh()
+        void hasLocalTransactions().then(setHasLocalData)
+      }),
+    [refresh],
+  )
 
   const months = useMemo(
     () => availableMonths(transactions),

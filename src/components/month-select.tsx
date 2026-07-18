@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { IconButtonTooltip } from "@/components/ui/icon-button-tooltip"
 import {
   Popover,
   PopoverContent,
@@ -33,16 +34,20 @@ export function MonthSelect({
 
   return (
     <div className="flex items-center gap-1">
-      <Button
-        type="button"
-        variant="outline"
-        size="icon-sm"
-        aria-label="Previous month"
-        disabled={!canOlder}
-        onClick={goOlder}
-      >
-        <ChevronLeft />
-      </Button>
+      <IconButtonTooltip label="Previous month">
+        <span className="inline-flex">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label="Previous month"
+            disabled={!canOlder}
+            onClick={goOlder}
+          >
+            <ChevronLeft />
+          </Button>
+        </span>
+      </IconButtonTooltip>
 
       <Popover>
         <PopoverTrigger asChild>
@@ -81,16 +86,20 @@ export function MonthSelect({
         </PopoverContent>
       </Popover>
 
-      <Button
-        type="button"
-        variant="outline"
-        size="icon-sm"
-        aria-label="Next month"
-        disabled={!canNewer}
-        onClick={goNewer}
-      >
-        <ChevronRight />
-      </Button>
+      <IconButtonTooltip label="Next month">
+        <span className="inline-flex">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label="Next month"
+            disabled={!canNewer}
+            onClick={goNewer}
+          >
+            <ChevronRight />
+          </Button>
+        </span>
+      </IconButtonTooltip>
     </div>
   )
 }

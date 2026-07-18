@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { MonthSelect } from "@/components/month-select"
 import { Button } from "@/components/ui/button"
+import { IconButtonTooltip } from "@/components/ui/icon-button-tooltip"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,35 +84,41 @@ export function TransactionPageActions({
     <div className="flex flex-wrap items-center gap-2">
       <MonthSelect months={months} value={month} onChange={onMonthChange} />
       {onFiltersOpenChange ? (
-        <Button
-          variant={filtersOpen ? "secondary" : "outline"}
-          size="icon-sm"
-          aria-label={filtersOpen ? "Hide filters" : "Show filters"}
-          aria-pressed={filtersOpen}
-          onClick={() => onFiltersOpenChange(!filtersOpen)}
-          className={cn("relative", filtersActive && "border-primary")}
+        <IconButtonTooltip
+          label={filtersOpen ? "Hide filters" : "Show filters"}
         >
-          <ListFilter className="size-4" />
-          {activeFilterCount > 0 ? (
-            <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full text-[10px] font-medium">
-              {activeFilterCount}
-            </span>
-          ) : null}
-        </Button>
+          <Button
+            variant={filtersOpen ? "secondary" : "outline"}
+            size="icon-sm"
+            aria-label={filtersOpen ? "Hide filters" : "Show filters"}
+            aria-pressed={filtersOpen}
+            onClick={() => onFiltersOpenChange(!filtersOpen)}
+            className={cn("relative", filtersActive && "border-primary")}
+          >
+            <ListFilter className="size-4" />
+            {activeFilterCount > 0 ? (
+              <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full text-[10px] font-medium">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </Button>
+        </IconButtonTooltip>
       ) : null}
       {onGroupByChange ? (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant={groupingActive ? "secondary" : "outline"}
-              size="icon-sm"
-              aria-label="Group transactions"
-              aria-pressed={groupingActive}
-              className={cn(groupingActive && "border-primary")}
-            >
-              <Group className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
+          <IconButtonTooltip label="Group transactions">
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant={groupingActive ? "secondary" : "outline"}
+                size="icon-sm"
+                aria-label="Group transactions"
+                aria-pressed={groupingActive}
+                className={cn(groupingActive && "border-primary")}
+              >
+                <Group className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+          </IconButtonTooltip>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel>Group by</DropdownMenuLabel>
             <DropdownMenuRadioGroup
@@ -143,20 +150,22 @@ export function TransactionPageActions({
         </Button>
       ) : (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={running}
-              aria-label="Transaction actions"
-            >
-              {running ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <MoreHorizontal className="size-4" />
-              )}
-            </Button>
-          </DropdownMenuTrigger>
+          <IconButtonTooltip label="Transaction actions">
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={running}
+                aria-label="Transaction actions"
+              >
+                {running ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <MoreHorizontal className="size-4" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+          </IconButtonTooltip>
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuItem
               disabled={running}

@@ -1,9 +1,5 @@
 import { createClientOnlyFn } from "@tanstack/react-start"
-import {
-  getAllStatements,
-  getAllTransactions,
-  getMerchantMemory,
-} from "@/lib/db"
+import { clearAllData, getAllStatements, getAllTransactions, getMerchantMemory } from "@/lib/db"
 import { migrateLocalDataToCloud } from "@/server/migrate-local-data"
 
 export const migrateIndexedDbToCloud = createClientOnlyFn(async () => {
@@ -22,7 +18,7 @@ export const migrateIndexedDbToCloud = createClientOnlyFn(async () => {
     transactions.length === 0 &&
     merchantMemory.length === 0
   ) {
-    return { statements: 0, transactions: 0, merchantMemory: 0 }
+    return { statements: 0, transactions: 0, merchantMemory: 0, clearedLocal: false }
   }
 
   const headers = await getAuthRequestHeaders()
@@ -31,9 +27,12 @@ export const migrateIndexedDbToCloud = createClientOnlyFn(async () => {
     data: { statements, transactions, merchantMemory },
   })
 
+  await clearAllData()
+
   return {
     statements: statements.length,
     transactions: transactions.length,
     merchantMemory: merchantMemory.length,
+    clearedLocal: true,
   }
 })

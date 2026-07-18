@@ -47,6 +47,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useFinanceData } from "@/hooks/use-finance-data"
 import { authClient } from "@/lib/auth/client"
 import { useAuthSession } from "@/lib/auth/use-auth-session"
 import { clearAllData } from "@/lib/finance/storage"
@@ -76,11 +77,20 @@ export const AppSidebar = memo(function AppSidebar() {
   const [clearing, setClearing] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const { user, isSignedIn: signedIn } = useAuthSession()
+  const { hasLocalData } = useFinanceData()
 
   const displayName = user?.name || user?.email || INCOGNITO_USER.label
+  const hasPendingLocalSync = signedIn && hasLocalData === true
   const displaySubtitle = signedIn
-    ? "Synced to your account"
+    ? hasPendingLocalSync
+      ? "Local data pending sync"
+      : "Synced to cloud"
     : INCOGNITO_USER.subtitle
+  const accountHint = signedIn
+    ? hasPendingLocalSync
+      ? "This browser still has unsynced data from before you signed in. Use Sync local data to upload it to your account."
+      : "Uploads and changes save to your cloud account automatically."
+    : INCOGNITO_USER.hint
   const initials = signedIn
     ? (displayName
         .split(/\s+/)
@@ -111,7 +121,7 @@ export const AppSidebar = memo(function AppSidebar() {
         })
       } else {
         toast.success(
-          `Synced ${synced.transactions} transactions to your account`,
+          `Synced ${synced.transactions} transactions to your account and cleared local browser data.`,
         )
       }
     } catch (e) {
@@ -252,15 +262,13 @@ export const AppSidebar = memo(function AppSidebar() {
                   </div>
                 </DropdownMenuLabel>
                 <p className="text-muted-foreground px-2 pb-1 text-xs leading-relaxed">
-                  {signedIn
-                    ? "Your data is stored in your RupeeLens account. Clearing local data only affects this browser."
-                    : INCOGNITO_USER.hint}
+                  {accountHint}
                 </p>
                 <DropdownMenuSeparator />
                 {signedIn ? (
                   <>
                     <DropdownMenuItem
-                      disabled={syncing}
+                      disabled={syncing || !hasPendingLocalSync}
                       onSelect={() => void syncLocalData()}
                     >
                       {syncing ? (
