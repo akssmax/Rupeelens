@@ -54,6 +54,7 @@ import { useAuthSession } from "@/lib/auth/use-auth-session"
 import { clearAllData } from "@/lib/finance/storage"
 import { emitFinanceRefresh } from "@/lib/finance-events"
 import { migrateIndexedDbToCloud } from "@/lib/migrate-local-to-cloud"
+import { setSandboxMode } from "@/lib/sandbox/load-demo"
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -140,6 +141,7 @@ export const AppSidebar = memo(function AppSidebar() {
     setClearing(true)
     try {
       await clearAllData()
+      setSandboxMode(false)
       emitFinanceRefresh()
       setClearOpen(false)
       toast.success("Stored data cleared")

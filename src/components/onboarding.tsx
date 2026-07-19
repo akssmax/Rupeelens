@@ -1,6 +1,9 @@
+import { useState } from "react"
 import { motion } from "framer-motion"
 import {
   FileSpreadsheet,
+  FlaskConical,
+  Loader2,
   Sparkles,
   Tags,
   Upload,
@@ -9,6 +12,8 @@ import { useMinimalShell } from "@/components/layout/shell-chrome"
 import { useUploadPanel } from "@/components/upload/upload-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { emitFinanceRefresh } from "@/lib/finance-events"
+import { loadSandboxDemo } from "@/lib/sandbox/load-demo"
 
 const steps = [
   {
@@ -31,6 +36,18 @@ const steps = [
 export function Onboarding() {
   useMinimalShell(true)
   const { openUpload } = useUploadPanel()
+  const [loadingDemo, setLoadingDemo] = useState(false)
+
+  const tryDemo = async () => {
+    if (loadingDemo) return
+    setLoadingDemo(true)
+    try {
+      await loadSandboxDemo()
+      emitFinanceRefresh()
+    } catch {
+      setLoadingDemo(false)
+    }
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-4">
@@ -50,14 +67,27 @@ export function Onboarding() {
           private by default, with AI that understands Indian UPI narrations.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-          <Button size="lg" onClick={openUpload}>
+          <Button size="lg" onClick={openUpload} disabled={loadingDemo}>
             <Upload className="size-4" />
             Upload your first statement
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            disabled={loadingDemo}
+            onClick={() => void tryDemo()}
+          >
+            {loadingDemo ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <FlaskConical className="size-4" />
+            )}
+            {loadingDemo ? "Loading demo…" : "Try the app"}
           </Button>
         </div>
         <p className="text-muted-foreground flex items-center justify-center gap-1.5 text-xs">
           <Sparkles className="size-3.5" />
-          Categorization runs in the background — no waiting on a modal
+          Try the app loads sample data in this browser — no sign-in required
         </p>
       </motion.div>
 

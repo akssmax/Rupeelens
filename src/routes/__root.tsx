@@ -5,7 +5,6 @@ import { TanStackDevtools } from "@tanstack/react-devtools"
 import { ErrorBoundary, ErrorFallback } from "@/components/error-boundary"
 import { AppShell } from "@/components/layout/app-shell"
 import { AppProviders } from "@/components/providers"
-import { Toaster } from "@/components/ui/sonner"
 
 import appCss from "../styles.css?url"
 
@@ -70,7 +69,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body suppressHydrationWarning>
         <AppProviders>
           {children}
-          <Toaster />
           {import.meta.env.DEV ? (
             <TanStackDevtools
               config={{

@@ -3,6 +3,7 @@ import { NeonAuthUIProvider } from "@neondatabase/auth-ui"
 import { ShellChromeProvider } from "@/components/layout/shell-chrome"
 import { ThemeProvider } from "@/components/theme-provider"
 import { UploadProvider } from "@/components/upload/upload-context"
+import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { authClient } from "@/lib/auth/client"
 
@@ -41,6 +42,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
             <UploadProvider>{children}</UploadProvider>
           </ShellChromeProvider>
         </AuthUiBridge>
+        <Toaster />
       </TooltipProvider>
     </ThemeProvider>
   )
