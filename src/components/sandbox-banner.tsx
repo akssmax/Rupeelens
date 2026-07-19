@@ -1,10 +1,12 @@
 import { useState } from "react"
+import { useNavigate } from "@tanstack/react-router"
 import { FlaskConical, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { emitFinanceRefresh } from "@/lib/finance-events"
 import { exitSandboxDemo, isSandboxMode } from "@/lib/sandbox/load-demo"
 
 export function SandboxBanner() {
+  const navigate = useNavigate()
   const [active] = useState(() => isSandboxMode())
   const [exiting, setExiting] = useState(false)
 
@@ -15,6 +17,7 @@ export function SandboxBanner() {
     try {
       await exitSandboxDemo()
       emitFinanceRefresh()
+      void navigate({ to: "/", replace: true })
     } catch {
       setExiting(false)
     }
